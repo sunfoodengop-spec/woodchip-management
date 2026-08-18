@@ -121,6 +121,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 /* ---------- Paste zone ---------- */
 .paste-zone{background:var(--navy);border:2px dashed var(--line);border-radius:8px;padding:12px;margin-top:10px;}
 .paste-zone.hide{display:none;}
+.hide{display:none !important;}
 .paste-zone label{font-size:10px;font-weight:700;color:var(--ink-dim2);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
 .paste-zone textarea{width:100%;background:transparent;border:none;color:var(--ink);font-family:var(--font-mono);font-size:12px;resize:vertical;min-height:70px;outline:none;line-height:1.5;}
 .preview-table{margin-top:10px;}
@@ -931,16 +932,20 @@ async function switchSettingsTab(t){
       <td style="font-family:var(--font-body);">${r.description||''}</td><td><button class="btn btn-secondary btn-sm" onclick="saveConfig('${r.key}')">บันทึก</button></td></tr>`).join('')}</tbody></table></div>`;
   } else if(t==='suppliers'){
     const rows = await loadSuppliers();
+    window._suppliersById = {}; rows.forEach(s=>window._suppliersById[s.id]=s);
     body.innerHTML = `<div class="card">
-      <table><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th></tr></thead>
-      <tbody>${rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'-'}</td></tr>`).join('')}</tbody></table>
-      <h3 class="card-title section-gap">เพิ่มซัพพลายเออร์ใหม่</h3>
+      <table><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th><th></th></tr></thead>
+      <tbody>${rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'<span style="color:var(--ink-dim);">(ไม่มี login)</span>'}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="editSupplierForm('${s.id}')">แก้ไข</button></td></tr>`).join('')}</tbody></table>
+      <h3 class="card-title section-gap" id="ns-form-title">เพิ่มซัพพลายเออร์ใหม่</h3>
+      <div id="ns-form-msg"></div>
       <div class="toolbar">
         <div class="field"><label>ชื่อบริษัท</label><input id="ns-name"></div>
         <div class="field"><label>ผู้ติดต่อ</label><input id="ns-contact"></div>
         <div class="field"><label>โทรศัพท์</label><input id="ns-phone"></div>
-        <div class="field"><label>Username</label><input id="ns-username"></div>
-        <button class="btn btn-primary" onclick="addSupplier()">เพิ่ม</button>
+        <div class="field"><label>Username (เว้นว่างได้ถ้าซัพพลายเออร์ไม่ต้อง login เข้าระบบ)</label><input id="ns-username"></div>
+        <button class="btn btn-primary" id="ns-submit-btn" onclick="saveSupplier()">เพิ่ม</button>
+        <button class="btn btn-secondary hide" id="ns-cancel-btn" onclick="cancelEditSupplier()">ยกเลิก</button>
       </div></div>`;
   } else if(t==='users'){
     body.innerHTML = `<div class="card">
@@ -962,26 +967,59 @@ async function switchSettingsTab(t){
 }
 async function saveConfig(key){
   const val = document.getElementById('cfg-'+key).value;
-  await rpc('update_sys_config', { p_token: SESSION.token, p_key: key, p_value: val });
-  SYS_CONFIG_CACHE = null;
-  switchSettingsTab('formula');
+  try{
+    await rpc('update_sys_config', { p_token: SESSION.token, p_key: key, p_value: val });
+    SYS_CONFIG_CACHE = null;
+    switchSettingsTab('formula');
+  }catch(e){ alert('บันทึกไม่สำเร็จ: ' + e.message); }
 }
-async function addSupplier(){
-  await rpc('manage_supplier', { p_token: SESSION.token, p_id: null,
-    p_name: document.getElementById('ns-name').value, p_contact_name: document.getElementById('ns-contact').value,
-    p_phone: document.getElementById('ns-phone').value, p_username: document.getElementById('ns-username').value });
-  SUPPLIERS_CACHE = null;
+async function saveSupplier(){
+  const msg = document.getElementById('ns-form-msg');
+  const id = document.getElementById('ns-submit-btn').dataset.editId || null;
+  const name = document.getElementById('ns-name').value.trim();
+  if(!name){ msg.innerHTML = '<div class="err-msg">กรุณากรอกชื่อบริษัท</div>'; return; }
+  msg.innerHTML = '';
+  try{
+    await rpc('manage_supplier', { p_token: SESSION.token, p_id: id,
+      p_name: name, p_contact_name: document.getElementById('ns-contact').value,
+      p_phone: document.getElementById('ns-phone').value, p_username: document.getElementById('ns-username').value });
+    SUPPLIERS_CACHE = null;
+    switchSettingsTab('suppliers');
+  }catch(e){
+    msg.innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message.includes('duplicate')||e.message.includes('unique') ? 'Username นี้ถูกใช้แล้ว ลองเว้นว่างหรือใช้ชื่ออื่น' : e.message}</div>`;
+  }
+}
+function editSupplierForm(id){
+  const s = window._suppliersById[id];
+  if(!s) return;
+  document.getElementById('ns-form-title').textContent = 'แก้ไขซัพพลายเออร์: ' + s.name;
+  document.getElementById('ns-name').value = s.name || '';
+  document.getElementById('ns-contact').value = s.contact_name || '';
+  document.getElementById('ns-phone').value = s.phone || '';
+  document.getElementById('ns-username').value = s.username || '';
+  const btn = document.getElementById('ns-submit-btn');
+  btn.textContent = 'บันทึกการแก้ไข';
+  btn.dataset.editId = id;
+  document.getElementById('ns-cancel-btn').classList.remove('hide');
+  document.getElementById('ns-name').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelEditSupplier(){
   switchSettingsTab('suppliers');
 }
 async function addUser(){
-  await rpc('manage_user', { p_token: SESSION.token, p_id: null,
-    p_username: document.getElementById('nu-username').value, p_role: document.getElementById('nu-role').value,
-    p_department: document.getElementById('nu-dept').value, p_supplier_id: null });
-  alert('เพิ่มผู้ใช้แล้ว (รหัสผ่านตั้งต้น 123456789)');
+  const msg = document.getElementById('nu-msg'); if(msg) msg.innerHTML='';
+  try{
+    await rpc('manage_user', { p_token: SESSION.token, p_id: null,
+      p_username: document.getElementById('nu-username').value, p_role: document.getElementById('nu-role').value,
+      p_department: document.getElementById('nu-dept').value, p_supplier_id: null });
+    alert('เพิ่มผู้ใช้แล้ว (รหัสผ่านตั้งต้น 123456789)');
+  }catch(e){ alert('เพิ่มผู้ใช้ไม่สำเร็จ: ' + e.message); }
 }
 async function resetUserPw(){
-  await rpc('reset_user_password', { p_token: SESSION.token, p_username: document.getElementById('rp-username').value });
-  alert('รีเซ็ตรหัสผ่านเป็น 123456789 แล้ว');
+  try{
+    await rpc('reset_user_password', { p_token: SESSION.token, p_username: document.getElementById('rp-username').value });
+    alert('รีเซ็ตรหัสผ่านเป็น 123456789 แล้ว');
+  }catch(e){ alert('รีเซ็ตไม่สำเร็จ: ' + e.message); }
 }
 
 /* ============================================================
