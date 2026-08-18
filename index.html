@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ระบบบริหารจัดการไม้สับ</title>
+<title>WoodChip Control | ระบบบริหารจัดการไม้สับ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -11,74 +11,120 @@
 <style>
 :root{
   --navy:#0d1b2a; --navy-2:#132a40; --navy-3:#1b3a56;
-  --amber:#f59e0b; --green:#10b981; --red:#ef4444; --warn:#f97316;
-  --ink:#e8edf3; --ink-dim:#93a3b8; --line:#26405c;
+  --amber:#f59e0b; --amber-h:#d97706; --amber-glow:rgba(245,158,11,.12);
+  --green:#10b981; --green-bg:rgba(16,185,129,.1);
+  --red:#ef4444; --red-bg:rgba(239,68,68,.1);
+  --blue:#3b82f6; --blue-bg:rgba(59,130,246,.1);
+  --purp:#a78bfa; --purp-bg:rgba(167,139,250,.1);
+  --warn:#f97316; --warn-bg:rgba(249,115,22,.1);
+  --ink:#e8edf3; --ink-dim:#93a3b8; --ink-dim2:#5a7089; --line:#26405c;
   --font-head:'Barlow Condensed',sans-serif; --font-body:'Barlow',sans-serif; --font-mono:'JetBrains Mono',monospace;
 }
 *{box-sizing:border-box;}
-body{margin:0;background:var(--navy);color:var(--ink);font-family:var(--font-body);min-height:100vh;}
+body{margin:0;background:var(--navy);color:var(--ink);font-family:var(--font-body);min-height:100vh;font-size:14px;}
 h1,h2,h3,.headfont{font-family:var(--font-head);font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
 .mono{font-family:var(--font-mono);}
 a{color:inherit;}
 button{font-family:var(--font-body);cursor:pointer;}
 input,select,textarea{font-family:var(--font-body);}
 
+/* ---------- Loading ---------- */
+.spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-box{text-align:center;padding:60px;color:var(--ink-dim);}
+.loading-box .spin{margin:0 auto 12px;}
+
 /* ---------- Login ---------- */
 #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:
   radial-gradient(circle at 20% 20%, rgba(245,158,11,.08), transparent 40%),
   radial-gradient(circle at 80% 80%, rgba(16,185,129,.08), transparent 40%), var(--navy);}
-.login-box{width:360px;background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:32px;}
-.login-box h1{font-size:26px;margin:0 0 4px;color:var(--amber);}
-.login-box .sub{color:var(--ink-dim);font-size:13px;margin-bottom:24px;}
+.login-box{width:380px;background:var(--navy-2);border:1px solid var(--line);border-radius:12px;padding:36px;box-shadow:0 24px 64px rgba(0,0,0,.45);}
+.login-box h1{font-size:28px;margin:0 0 4px;color:var(--amber);}
+.login-box .sub{color:var(--ink-dim);font-size:13px;margin-bottom:26px;}
 .field{margin-bottom:16px;}
-.field label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
-.field input,.field select{width:100%;padding:10px 12px;background:var(--navy);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:14px;}
-.field input:focus,.field select:focus{outline:none;border-color:var(--amber);}
-.btn{padding:10px 18px;border-radius:6px;border:none;font-weight:600;font-size:14px;}
+.field label{display:block;font-size:11px;color:var(--ink-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+.field input,.field select{width:100%;padding:10px 12px;background:var(--navy);border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:14px;font-family:var(--font-mono);}
+.field input:focus,.field select:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-glow);}
+.btn{padding:10px 18px;border-radius:7px;border:none;font-weight:700;font-size:13px;font-family:var(--font-head);text-transform:uppercase;letter-spacing:.04em;}
 .btn-primary{background:var(--amber);color:var(--navy);width:100%;}
-.btn-primary:hover{filter:brightness(1.08);}
+.btn-primary:hover{background:var(--amber-h);}
 .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--ink);}
+.btn-secondary:hover{background:var(--navy-3);}
 .btn-danger{background:var(--red);color:#fff;}
-.err-msg{background:rgba(239,68,68,.12);border:1px solid var(--red);color:#fca5a5;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:14px;}
-.ok-msg{background:rgba(16,185,129,.12);border:1px solid var(--green);color:#6ee7b7;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:14px;}
+.btn-sm{padding:6px 12px;font-size:11px;}
+.err-msg{background:var(--red-bg);border:1px solid var(--red);color:#fca5a5;padding:9px 12px;border-radius:7px;font-size:13px;margin-bottom:14px;}
+.ok-msg{background:var(--green-bg);border:1px solid var(--green);color:#6ee7b7;padding:9px 12px;border-radius:7px;font-size:13px;margin-bottom:14px;}
 
 /* ---------- App shell ---------- */
-#app-shell{display:none;min-height:100vh;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr;}
+#app-shell{display:none;min-height:100vh;grid-template-columns:230px 1fr;grid-template-rows:60px 1fr;}
 #app-shell.active{display:grid;}
-#topbar{grid-column:1/3;background:var(--navy-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;}
-#topbar .brand{font-family:var(--font-head);font-weight:700;color:var(--amber);letter-spacing:.05em;}
+#topbar{grid-column:1/3;background:var(--navy-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:50;}
+#topbar .brand{font-family:var(--font-head);font-weight:700;color:var(--amber);letter-spacing:.05em;font-size:16px;}
 #topbar .user-info{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--ink-dim);}
-#topbar .role-badge{background:var(--navy-3);color:var(--amber);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:.05em;}
+.role-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid;}
+.role-ENG{background:rgba(59,130,246,.15);color:#93c5fd;border-color:#3b82f6;}
+.role-PUR{background:rgba(167,139,250,.15);color:#c4b5fd;border-color:#a78bfa;}
+.role-STO{background:rgba(16,185,129,.15);color:#6ee7b7;border-color:#10b981;}
+.role-PRD{background:rgba(245,158,11,.15);color:#fcd34d;border-color:#f59e0b;}
+.role-SUP{background:rgba(236,72,153,.15);color:#f9a8d4;border-color:#ec4899;}
+.role-ADMIN{background:rgba(239,68,68,.15);color:#fca5a5;border-color:#ef4444;}
 #sidebar{background:var(--navy-2);border-right:1px solid var(--line);padding:14px 0;overflow-y:auto;}
-#sidebar a{display:block;padding:11px 20px;font-size:14px;color:var(--ink-dim);text-decoration:none;border-left:3px solid transparent;}
+#sidebar .nav-grp{font-size:10px;font-weight:700;color:var(--ink-dim2);text-transform:uppercase;letter-spacing:.08em;padding:14px 20px 6px;}
+#sidebar a{display:flex;align-items:center;gap:9px;padding:10px 20px;font-size:14px;color:var(--ink-dim);text-decoration:none;border-left:3px solid transparent;}
 #sidebar a:hover{color:var(--ink);background:rgba(255,255,255,.03);}
-#sidebar a.active{color:var(--amber);border-left-color:var(--amber);background:rgba(245,158,11,.06);}
+#sidebar a.active{color:var(--amber);border-left-color:var(--amber);background:rgba(245,158,11,.06);font-weight:600;}
 #content{padding:24px;overflow-y:auto;}
 .page-title{font-size:22px;margin:0 0 20px;color:var(--ink);}
 
-/* ---------- Cards / tables ---------- */
+/* ---------- Cards / stats ---------- */
 .grid{display:grid;gap:16px;}
 .grid-4{grid-template-columns:repeat(4,1fr);}
 .grid-2{grid-template-columns:1fr 1fr;}
 .card{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:18px;}
-.stat-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin-bottom:8px;}
-.stat-card .value{font-family:var(--font-mono);font-size:26px;font-weight:700;}
-.stat-card .value.amber{color:var(--amber);}
-.stat-card .value.green{color:var(--green);}
-.stat-card .value.red{color:var(--red);}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line);}
+.card-title{font-family:var(--font-head);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:0;}
+.stat{position:relative;overflow:hidden;}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.stat.amber::before{background:var(--amber);} .stat.green::before{background:var(--green);}
+.stat.blue::before{background:var(--blue);} .stat.red::before{background:var(--red);} .stat.purp::before{background:var(--purp);}
+.stat .label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin-bottom:8px;font-weight:600;}
+.stat .value{font-family:var(--font-mono);font-size:24px;font-weight:700;}
+.stat .value .unit{font-size:12px;color:var(--ink-dim);margin-left:4px;font-weight:400;}
+.stat .sub{font-size:11px;color:var(--ink-dim);margin-top:5px;}
+
+/* ---------- Stock gauge ---------- */
+.stock-bar{height:14px;background:var(--navy);border-radius:8px;overflow:hidden;border:1px solid var(--line);margin:10px 0 6px;}
+.stock-fill{height:100%;transition:width .4s;}
+.sf-crit{background:var(--red);} .sf-low{background:var(--warn);} .sf-ok{background:var(--green);} .sf-high{background:var(--blue);}
+.stock-marks{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);}
+.badge{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;}
+.badge-ok{background:var(--green-bg);color:#6ee7b7;} .badge-warn{background:var(--warn-bg);color:#fdba74;}
+.badge-err{background:var(--red-bg);color:#fca5a5;} .badge-info{background:var(--blue-bg);color:#93c5fd;}
+
+/* ---------- Tables ---------- */
 table{width:100%;border-collapse:collapse;font-size:13px;}
-th{text-align:left;color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);}
+th{text-align:left;color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
 td{padding:9px 10px;border-bottom:1px solid rgba(38,64,92,.5);font-family:var(--font-mono);}
 tr:hover td{background:rgba(255,255,255,.02);}
 .badge-over{color:var(--warn);font-weight:700;}
+.row-del{background:transparent;border:none;color:var(--ink-dim2);font-size:14px;padding:2px 6px;border-radius:4px;}
+.row-del:hover{color:var(--red);background:var(--red-bg);}
 .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);}
-.tab{padding:8px 16px;font-size:13px;color:var(--ink-dim);border-bottom:2px solid transparent;cursor:pointer;}
+.tab{padding:9px 18px;font-size:13px;color:var(--ink-dim);border-bottom:2px solid transparent;cursor:pointer;font-weight:600;}
 .tab.active{color:var(--amber);border-bottom-color:var(--amber);}
 .toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:16px;}
 .toolbar .field{margin-bottom:0;min-width:140px;}
 .section-gap{margin-top:24px;}
 .hint{font-size:12px;color:var(--ink-dim);margin-top:6px;}
-.chart-wrap{position:relative;height:260px;}
+.chart-wrap{position:relative;height:230px;}
+
+/* ---------- Paste zone ---------- */
+.paste-zone{background:var(--navy);border:2px dashed var(--line);border-radius:8px;padding:12px;margin-top:10px;}
+.paste-zone.hide{display:none;}
+.paste-zone label{font-size:10px;font-weight:700;color:var(--ink-dim2);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
+.paste-zone textarea{width:100%;background:transparent;border:none;color:var(--ink);font-family:var(--font-mono);font-size:12px;resize:vertical;min-height:70px;outline:none;line-height:1.5;}
+.preview-table{margin-top:10px;}
+.preview-table input{width:110px;background:var(--navy-2);border:1px solid var(--line);color:var(--ink);padding:4px 8px;border-radius:4px;font-family:var(--font-mono);font-size:12px;}
 </style>
 </head>
 <body>
@@ -86,7 +132,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <!-- ================= LOGIN ================= -->
 <div id="login-screen">
   <div class="login-box">
-    <h1>ไม้สับ</h1>
+    <h1>🪵 ไม้สับ</h1>
     <div class="sub">ระบบบริหารจัดการคลังไม้สับ</div>
     <div id="login-msg"></div>
 
@@ -110,9 +156,9 @@ tr:hover td{background:rgba(255,255,255,.02);}
   <div id="topbar">
     <div class="brand">🪵 WOODCHIP CONTROL</div>
     <div class="user-info">
-      <span id="tb-username"></span>
+      <span id="tb-username" class="mono"></span>
       <span class="role-badge" id="tb-role"></span>
-      <button class="btn btn-secondary" onclick="doLogout()">ออกจากระบบ</button>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()">ออกจากระบบ</button>
     </div>
   </div>
   <div id="sidebar"></div>
@@ -132,6 +178,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 ============================================================ */
 let SESSION = JSON.parse(localStorage.getItem('wc_session') || 'null');
 let PENDING_USERNAME = null;
+let SYS_CONFIG_CACHE = null;
 
 function saveSession(s){ SESSION = s; localStorage.setItem('wc_session', JSON.stringify(s)); }
 function clearSession(){ SESSION = null; localStorage.removeItem('wc_session'); }
@@ -141,7 +188,6 @@ async function sha256(text){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-/* Wrapper around supabase.rpc: on INVALID_SESSION, force logout */
 async function rpc(fn, params={}){
   const { data, error } = await sb.rpc(fn, params);
   if(error){
@@ -177,7 +223,6 @@ async function doLogin(){
     msg.innerHTML = `<div class="err-msg">เข้าสู่ระบบไม่สำเร็จ: ${e.message.includes('INVALID_CREDENTIALS')?'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง':e.message}</div>`;
   }
 }
-
 async function doSetPassword(){
   const msg = document.getElementById('login-msg'); msg.innerHTML='';
   const p1 = document.getElementById('rs-new1').value;
@@ -194,14 +239,10 @@ async function doSetPassword(){
     msg.innerHTML = `<div class="err-msg">เกิดข้อผิดพลาด: ${e.message}</div>`;
   }
 }
-
 function doLogout(){
   if(SESSION) rpc('logout', { p_token: SESSION.token }).catch(()=>{});
-  clearSession();
-  location.hash = '';
-  showLogin();
+  clearSession(); location.hash=''; showLogin();
 }
-
 function showLogin(){
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('app-shell').classList.remove('active');
@@ -209,12 +250,12 @@ function showLogin(){
   document.getElementById('reset-form').style.display='none';
   document.getElementById('login-msg').innerHTML='';
 }
-
 function enterApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-shell').classList.add('active');
   document.getElementById('tb-username').textContent = SESSION.username;
   document.getElementById('tb-role').textContent = SESSION.role;
+  document.getElementById('tb-role').className = 'role-badge role-'+SESSION.role;
   buildSidebar();
   router();
 }
@@ -223,25 +264,22 @@ function enterApp(){
    NAV / ROUTER
 ============================================================ */
 const NAV = [
-  {hash:'#dashboard', label:'ภาพรวม', roles:['ENG','PUR','STO','PRD','ADMIN']},
-  {hash:'#inventory', label:'สต็อกคลัง', roles:['ENG','PUR','STO','PRD','ADMIN']},
-  {hash:'#chicken', label:'แผนไก่ / ขนไก่', roles:['ENG','ADMIN']},
-  {hash:'#purchase', label:'แผนสั่งซื้อ', roles:['PUR','ENG','ADMIN']},
-  {hash:'#receipt', label:'บันทึกรับไม้', roles:['STO','ENG','ADMIN']},
-  {hash:'#steam', label:'บันทึกไอน้ำ', roles:['PRD','ENG','ADMIN']},
-  {hash:'#supplier', label:'กำหนดส่งของฉัน', roles:['SUP']},
-  {hash:'#reports', label:'รายงาน', roles:['ENG','PUR','ADMIN']},
-  {hash:'#settings', label:'ตั้งค่าระบบ', roles:['ENG','ADMIN']},
+  {hash:'#dashboard', label:'ภาพรวม', icon:'📊', roles:['ENG','PUR','STO','PRD','ADMIN']},
+  {hash:'#inventory', label:'สต็อกคลัง', icon:'🏭', roles:['ENG','PUR','STO','PRD','ADMIN']},
+  {hash:'#chicken', label:'แผนไก่ / ขนไก่', icon:'🐔', roles:['ENG','ADMIN']},
+  {hash:'#purchase', label:'แผนสั่งซื้อ', icon:'🛒', roles:['PUR','ENG','ADMIN']},
+  {hash:'#receipt', label:'บันทึกรับไม้', icon:'📥', roles:['STO','ENG','ADMIN']},
+  {hash:'#steam', label:'บันทึกไอน้ำ', icon:'💨', roles:['PRD','ENG','ADMIN']},
+  {hash:'#supplier', label:'กำหนดส่งของฉัน', icon:'🚚', roles:['SUP']},
+  {hash:'#reports', label:'รายงาน', icon:'📈', roles:['ENG','PUR','ADMIN']},
+  {hash:'#settings', label:'ตั้งค่าระบบ', icon:'⚙️', roles:['ENG','ADMIN']},
 ];
-
 function buildSidebar(){
   const el = document.getElementById('sidebar');
   el.innerHTML = NAV.filter(n=>n.roles.includes(SESSION.role))
-    .map(n=>`<a href="${n.hash}" data-hash="${n.hash}">${n.label}</a>`).join('');
+    .map(n=>`<a href="${n.hash}" data-hash="${n.hash}"><span>${n.icon}</span>${n.label}</a>`).join('');
 }
-
 window.addEventListener('hashchange', router);
-
 function router(){
   if(!SESSION){ showLogin(); return; }
   let h = location.hash || defaultHashFor(SESSION.role);
@@ -252,79 +290,139 @@ function router(){
   const renderFn = { dashboard:renderDashboard, inventory:renderInventory, chicken:renderChicken,
     purchase:renderPurchase, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
     reports:renderReports, settings:renderSettings }[page];
-  document.getElementById('content').innerHTML = '<div class="hint">กำลังโหลด...</div>';
+  document.getElementById('content').innerHTML = '<div class="loading-box"><div class="spin"></div>กำลังโหลด...</div>';
   if(renderFn) renderFn();
 }
-
-function defaultHashFor(role){
-  if(role==='SUP') return '#supplier';
-  return '#dashboard';
-}
+function defaultHashFor(role){ return role==='SUP' ? '#supplier' : '#dashboard'; }
 
 /* ============================================================
    HELPERS
 ============================================================ */
-function fmt(n){ return n==null ? '-' : Number(n).toLocaleString('th-TH',{maximumFractionDigits:0}); }
+function fmt(n,d=0){ return n==null ? '-' : Number(n).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d}); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function daysAgoISO(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+function isoWeek(dateStr){
+  const d = new Date(dateStr+'T00:00:00'); d.setHours(0,0,0,0);
+  d.setDate(d.getDate()+3-((d.getDay()+6)%7));
+  const week1 = new Date(d.getFullYear(),0,4);
+  const wn = 1+Math.round(((d-week1)/86400000-3+((week1.getDay()+6)%7))/7);
+  return `${d.getFullYear()}-W${String(wn).padStart(2,'0')}`;
+}
+function calcWoodLocal(chickenKg, feathersKg, cfg){
+  cfg = cfg || {};
+  const pctF = cfg.PCT_FEATHER_BONE ?? 0.21575, pctI = cfg.PCT_INTESTINE ?? 0.045;
+  const fC = cfg.FACTOR_CHICKEN ?? 0.056, fF = cfg.FACTOR_FEATHER ?? 0.5847, fI = cfg.FACTOR_INTESTINE ?? 0.9279;
+  const A = cfg.FORMULA_A ?? -0.000002388, B = cfg.FORMULA_B ?? 0.6147, C = cfg.FORMULA_C ?? 22141;
+  const g1 = chickenKg*fC, g2=(chickenKg*pctF+feathersKg)*fF, g3=(chickenKg*pctI)*fI;
+  const X = g1+g2+g3;
+  return Math.max(0, A*X*X + B*X + C);
+}
+async function getConfigMap(){
+  if(SYS_CONFIG_CACHE) return SYS_CONFIG_CACHE;
+  const rows = await rpc('get_sys_config', { p_token: SESSION.token }).catch(()=>[]);
+  const map = {};
+  rows.forEach(r=>map[r.key]=parseFloat(r.value));
+  SYS_CONFIG_CACHE = map;
+  return map;
+}
 
-function parsePastedSheet(text){
-  // รองรับ: วันที่ [Tab/comma] ค่า  — ข้าม header อัตโนมัติ
+function parsePastedSheet(text, cols){
+  // cols: number of expected columns (2 or 3). รองรับ Tab/comma separated, ข้าม header อัตโนมัติ
   const rows = [];
   text.split('\n').forEach(line=>{
     line = line.trim(); if(!line) return;
     const parts = line.split(/\t|,/).map(s=>s.trim());
     if(parts.length < 2) return;
-    const dateStr = parts[0], valStr = parts[1].replace(/,/g,'');
-    const d = parseFlexDate(dateStr);
-    const v = parseFloat(valStr);
-    if(d && !isNaN(v)) rows.push({date:d, value:v});
+    const d = parseFlexDate(parts[0]);
+    const v = parseFloat((parts[1]||'').replace(/,/g,''));
+    if(!d || isNaN(v)) return;
+    const row = { date:d, value:v };
+    if(cols===3) row.extra = parts[2] || '';
+    rows.push(row);
   });
   return rows;
 }
 function parseFlexDate(s){
-  s = s.trim();
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // d/m/yyyy
+  s = (s||'').trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); // yyyy-mm-dd
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
   return null;
 }
+function toggleZone(id){
+  const el = document.getElementById(id);
+  el.classList.toggle('hide');
+}
+function stockLevelClass(pct){ return pct<20?'sf-crit':pct<40?'sf-low':pct>90?'sf-high':'sf-ok'; }
+function stockLevelBadge(pct){
+  if(pct<20) return {cls:'badge-err', txt:'⚠️ วิกฤต'};
+  if(pct<40) return {cls:'badge-warn', txt:'⚠️ ต่ำ'};
+  if(pct>90) return {cls:'badge-info', txt:'🔵 สูง'};
+  return {cls:'badge-ok', txt:'✅ ปกติ'};
+}
 
 /* ============================================================
-   DASHBOARD
+   DASHBOARD  (+ SEC, stock gauge — ported from old system)
 ============================================================ */
 async function renderDashboard(){
-  const from = daysAgoISO(13), to = todayISO();
-  const data = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
-  const inv = data.inventory || [];
+  const from = daysAgoISO(29), to = todayISO();
+  const [data, cfg] = await Promise.all([
+    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    getConfigMap()
+  ]);
+  const inv = data.inventory || [], chicken = data.chicken_plan || [], steam = data.steam_usage || [];
+  const maxStock = cfg.MAX_STOCK_KG || 400000;
   const latest = inv.length ? inv[inv.length-1] : null;
-  const todayReceived = (inv.find(i=>i.inv_date===to)||{}).received_kg || 0;
-  const todayUsed = (inv.find(i=>i.inv_date===to)||{}).used_kg || 0;
   const stock = latest ? latest.closing_stock_kg : 0;
+  const pct = Math.min(100, Math.max(0, maxStock>0 ? Math.round((stock/maxStock)*100) : 0));
+  const lvl = stockLevelBadge(pct);
 
-  const html = `
+  const steamMap = {}; steam.forEach(s=>steamMap[s.usage_date]=s.steam_kg);
+  const chickenMap = {}; chicken.forEach(c=>chickenMap[c.plan_date]=c.planned_chicken_kg);
+  const secByDate = chicken.map(c=>{
+    const st = steamMap[c.plan_date];
+    return { date:c.plan_date, sec: (st && c.planned_chicken_kg) ? st/c.planned_chicken_kg : null };
+  });
+  const secVals = secByDate.map(d=>d.sec).filter(v=>v!=null);
+  const avgSEC = secVals.length ? secVals.reduce((a,b)=>a+b,0)/secVals.length : 0;
+
+  const totalChicken = chicken.reduce((s,c)=>s+(c.planned_chicken_kg||0),0);
+  const totalWood = chicken.reduce((s,c)=>s+(c.calc_wood_kg||0),0);
+  const totalReceived = inv.reduce((s,i)=>s+(i.received_kg||0),0);
+
+  document.getElementById('content').innerHTML = `
     <h2 class="page-title">ภาพรวม</h2>
     <div class="grid grid-4">
-      <div class="card stat-card"><div class="label">สต็อกคงเหลือล่าสุด</div><div class="value amber">${fmt(stock)} <span style="font-size:14px;">กก.</span></div></div>
-      <div class="card stat-card"><div class="label">รับไม้วันนี้</div><div class="value green">${fmt(todayReceived)} กก.</div></div>
-      <div class="card stat-card"><div class="label">ใช้ไม้วันนี้ (คำนวณ)</div><div class="value">${fmt(todayUsed)} กก.</div></div>
-      <div class="card stat-card"><div class="label">ความจุคลังสูงสุด</div><div class="value">400,000 กก.</div></div>
+      <div class="card stat amber"><div class="label">🏭 สต็อกปัจจุบัน</div><div class="value">${fmt(stock/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${pct}% จาก ${fmt(maxStock/1000,0)} ตัน</div></div>
+      <div class="card stat blue"><div class="label">🐔 ไก่รวม 30 วัน</div><div class="value">${fmt(totalChicken/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${fmt(totalChicken)} กก.</div></div>
+      <div class="card stat green"><div class="label">🪵 ไม้รับจริง 30 วัน</div><div class="value">${fmt(totalReceived/1000,1)}<span class="unit">ตัน</span></div><div class="sub">คำนวณต้องใช้: ${fmt(totalWood/1000,1)} ตัน</div></div>
+      <div class="card stat purp"><div class="label">⚡ SEC เฉลี่ย</div><div class="value">${avgSEC>0?fmt(avgSEC,3):'—'}<span class="unit">kg/kg</span></div><div class="sub">กก.ไอน้ำ / กก.ไก่</div></div>
     </div>
     <div class="card section-gap">
-      <h3 style="margin-top:0;">แนวโน้มสต็อก 14 วันล่าสุด</h3>
-      <div class="chart-wrap"><canvas id="stockChart"></canvas></div>
+      <div class="card-hd"><h3 class="card-title">ระดับสต็อกไม้สับ</h3><span class="badge ${lvl.cls}">${lvl.txt}</span></div>
+      <div class="stock-bar"><div class="stock-fill ${stockLevelClass(pct)}" style="width:${pct}%"></div></div>
+      <div class="stock-marks"><span>0 ตัน</span><span style="color:var(--warn);">⚠️ ขั้นต่ำ ${cfg.MIN_STOCK_DAYS||3} วัน</span><span>${fmt(maxStock/1000,0)} ตัน</span></div>
+    </div>
+    <div class="grid grid-2 section-gap">
+      <div class="card"><h3 class="card-title" style="margin-top:0;">แนวโน้มสต็อก 30 วัน</h3><div class="chart-wrap"><canvas id="stockChart"></canvas></div></div>
+      <div class="card"><h3 class="card-title" style="margin-top:0;">SEC รายวัน</h3><div class="chart-wrap"><canvas id="secChart"></canvas></div></div>
     </div>`;
-  document.getElementById('content').innerHTML = html;
 
-  const ctx = document.getElementById('stockChart');
-  new Chart(ctx, {
+  new Chart(document.getElementById('stockChart'), {
     type:'line',
-    data:{ labels: inv.map(i=>i.inv_date), datasets:[{
-      label:'สต็อกคงเหลือ (กก.)', data: inv.map(i=>i.closing_stock_kg),
-      borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.15)', fill:true, tension:.3 }]},
-    options:{ scales:{ x:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}}, y:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}} },
-      plugins:{legend:{labels:{color:'#e8edf3'}}} }
+    data:{ labels: inv.map(i=>i.inv_date.slice(5)), datasets:[
+      {label:'สต็อก (กก.)', data: inv.map(i=>i.closing_stock_kg), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.15)', fill:true, tension:.3, pointRadius:2},
+      {label:'Max', data: inv.map(()=>maxStock), borderColor:'rgba(239,68,68,.4)', borderDash:[5,5], pointRadius:0, fill:false}
+    ]},
+    options:{ scales:{ x:{ticks:{color:'#93a3b8',font:{size:9}},grid:{color:'#26405c'}}, y:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}} }, plugins:{legend:{labels:{color:'#e8edf3'}}} }
+  });
+  new Chart(document.getElementById('secChart'), {
+    type:'line',
+    data:{ labels: secByDate.map(d=>d.date.slice(5)), datasets:[
+      {label:'SEC (kg/kg)', data: secByDate.map(d=>d.sec), borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.15)', fill:true, tension:.3, pointRadius:2}
+    ]},
+    options:{ scales:{ x:{ticks:{color:'#93a3b8',font:{size:9}},grid:{color:'#26405c'}}, y:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}} }, plugins:{legend:{labels:{color:'#e8edf3'}}} }
   });
 }
 
@@ -333,6 +431,7 @@ async function renderDashboard(){
 ============================================================ */
 async function renderInventory(){
   const from = daysAgoISO(29), to = todayISO();
+  const cfg = await getConfigMap();
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">สต็อกคลัง</h2>
     <div class="toolbar">
@@ -340,67 +439,99 @@ async function renderInventory(){
       <div class="field"><label>ถึงวันที่</label><input type="date" id="inv-to" value="${to}"></div>
       <button class="btn btn-primary" onclick="loadInventoryTable()">ค้นหา</button>
     </div>
-    <div class="card"><table id="inv-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับเข้า</th><th>ใช้ไป</th><th>คงเหลือ</th></tr></thead><tbody></tbody></table></div>`;
+    <div class="card"><table id="inv-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับเข้า</th><th>ใช้ไป</th><th>คงเหลือ</th><th>%</th></tr></thead><tbody></tbody></table></div>`;
   loadInventoryTable();
 }
 async function loadInventoryTable(){
   const from = document.getElementById('inv-from').value, to = document.getElementById('inv-to').value;
+  const cfg = await getConfigMap();
+  const maxStock = cfg.MAX_STOCK_KG || 400000;
   const rows = await rpc('get_inventory', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
-  document.querySelector('#inv-table tbody').innerHTML = (rows||[]).map(r=>`
-    <tr><td>${r.inv_date}</td><td>${fmt(r.opening_stock_kg)}</td><td>${fmt(r.received_kg)}</td>
-    <td>${fmt(r.used_kg)}</td><td style="color:var(--amber);font-weight:700;">${fmt(r.closing_stock_kg)}</td></tr>`).join('')
-    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+  document.querySelector('#inv-table tbody').innerHTML = (rows||[]).map(r=>{
+    const pct = maxStock>0 ? Math.round((r.closing_stock_kg/maxStock)*100) : 0;
+    return `<tr><td>${r.inv_date}</td><td>${fmt(r.opening_stock_kg)}</td><td>${fmt(r.received_kg)}</td>
+    <td>${fmt(r.used_kg)}</td><td style="color:var(--amber);font-weight:700;">${fmt(r.closing_stock_kg)}</td><td>${pct}%</td></tr>`;
+  }).join('') || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
-   CHICKEN PLAN
+   CHICKEN / FEATHERS  (2 Tab — ported from old system)
 ============================================================ */
 async function renderChicken(){
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">แผนไก่ / ขนไก่</h2>
-    <div class="grid grid-2">
-      <div class="card">
-        <h3 style="margin-top:0;">บันทึกรายวัน</h3>
+    <div class="tabs">
+      <div class="tab active" data-t="chicken" onclick="switchChickenTab('chicken')">🐔 น้ำหนักไก่</div>
+      <div class="tab" data-t="feathers" onclick="switchChickenTab('feathers')">🪶 ขนไก่ที่ซื้อ</div>
+    </div>
+    <div id="chicken-tab-body"></div>`;
+  switchChickenTab('chicken');
+}
+async function switchChickenTab(t){
+  document.querySelectorAll('#content .tab').forEach(el=>el.classList.toggle('active', el.dataset.t===t));
+  const isChicken = t==='chicken';
+  const body = document.getElementById('chicken-tab-body');
+  body.innerHTML = `
+    <div class="card">
+      <h3 class="card-title" style="margin-top:0;">บันทึกรายวัน</h3>
+      <div class="toolbar">
         <div class="field"><label>วันที่</label><input type="date" id="ck-date" value="${todayISO()}"></div>
-        <div class="field"><label>น้ำหนักไก่ (กก.)</label><input type="number" id="ck-chicken"></div>
-        <div class="field"><label>ขนไก่ที่ซื้อมา (กก.)</label><input type="number" id="ck-feathers" value="0"></div>
-        <button class="btn btn-primary" onclick="saveChickenPlan()">บันทึก</button>
-        <div id="ck-result" class="hint"></div>
+        <div class="field"><label>${isChicken?'น้ำหนักไก่ (กก.)':'ขนไก่ที่ซื้อมา (กก.)'}</label><input type="number" id="ck-value"></div>
+        <button class="btn btn-primary" onclick="saveChickenField('${t}')">บันทึก</button>
       </div>
-      <div class="card">
-        <h3 style="margin-top:0;">วางจาก Google Sheets (น้ำหนักไก่)</h3>
-        <div class="hint">รูปแบบ: วันที่ [Tab] น้ำหนักไก่ — ข้าม header อัตโนมัติ</div>
-        <textarea id="ck-paste" rows="6" style="width:100%;margin-top:8px;background:var(--navy);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:8px;"></textarea>
-        <button class="btn btn-secondary" style="margin-top:8px;" onclick="pasteChickenPlan()">นำเข้า</button>
-        <div id="ck-paste-result" class="hint"></div>
+      <div id="ck-result" class="hint"></div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleZone('ck-paste-zone')">📋 วางจาก Google Sheets</button>
+      <div class="paste-zone hide" id="ck-paste-zone">
+        <label>วันที่ [Tab] ${isChicken?'น้ำหนักไก่':'น้ำหนักขนไก่'} (กก.) — ข้าม header อัตโนมัติ</label>
+        <textarea id="ck-paste" rows="5" placeholder="เช่น 26/4/2026&#9;461,780.00"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewChickenPaste('${t}')">ดูตัวอย่าง</button>
       </div>
+      <div id="ck-preview"></div>
     </div>
     <div class="card section-gap">
       <div class="toolbar">
         <div class="field"><label>จากวันที่</label><input type="date" id="ck-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="ck-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadChickenTable()">ค้นหา</button>
-        <button class="btn btn-danger" onclick="deleteRange('chicken_plan','ck-from','ck-to')">ลบข้อมูลในช่วงนี้</button>
+        <button class="btn btn-danger" onclick="deleteRange('chicken_plan','ck-from','ck-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ไม้สับที่คำนวณได้ (กก.)</th><th>บันทึกโดย</th></tr></thead><tbody></tbody></table>
+      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ไม้สับที่คำนวณได้ (กก.)</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadChickenTable();
 }
-async function saveChickenPlan(){
+async function saveChickenField(t){
   const date = document.getElementById('ck-date').value;
-  const chicken = parseFloat(document.getElementById('ck-chicken').value || 0);
-  const feathers = parseFloat(document.getElementById('ck-feathers').value || 0);
-  const res = await rpc('save_chicken_plan', { p_token: SESSION.token, p_date: date, p_chicken_kg: chicken, p_feathers_kg: feathers });
-  document.getElementById('ck-result').innerHTML = `<span style="color:var(--green);">คำนวณไม้สับได้ ${fmt(res.calc_wood_kg)} กก.</span>`;
+  const val = parseFloat(document.getElementById('ck-value').value || 0);
+  const params = { p_token: SESSION.token, p_date: date,
+    p_chicken_kg: t==='chicken' ? val : null,
+    p_feathers_kg: t==='feathers' ? val : null };
+  const res = await rpc('save_chicken_plan', params);
+  document.getElementById('ck-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว — ไม้สับที่คำนวณได้ ${fmt(res.calc_wood_kg)} กก.</span>`;
   loadChickenTable();
 }
-async function pasteChickenPlan(){
-  const rows = parsePastedSheet(document.getElementById('ck-paste').value);
+async function previewChickenPaste(t){
+  const rows = parsePastedSheet(document.getElementById('ck-paste').value, 2);
+  const cfg = await getConfigMap();
+  const box = document.getElementById('ck-preview');
+  if(!rows.length){ box.innerHTML = '<div class="hint">ไม่พบข้อมูลที่แปลงได้ ตรวจรูปแบบวันที่/ตัวเลข</div>'; return; }
+  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>${t==='chicken'?'น้ำหนักไก่':'ขนไก่'} (กก.)</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="ckp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
+    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmChickenImport('${t}', ${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+  window._ckPasteRows = rows;
+}
+async function confirmChickenImport(t, n){
   let ok=0;
-  for(const r of rows){
-    try{ await rpc('save_chicken_plan', { p_token: SESSION.token, p_date: r.date, p_chicken_kg: r.value, p_feathers_kg: 0 }); ok++; }catch(e){}
+  for(let i=0;i<n;i++){
+    const row = window._ckPasteRows[i];
+    const val = parseFloat(document.getElementById('ckp-'+i).value || 0);
+    try{
+      await rpc('save_chicken_plan', { p_token: SESSION.token, p_date: row.date,
+        p_chicken_kg: t==='chicken' ? val : null, p_feathers_kg: t==='feathers' ? val : null });
+      ok++;
+    }catch(e){}
   }
-  document.getElementById('ck-paste-result').textContent = `นำเข้าสำเร็จ ${ok}/${rows.length} แถว`;
+  document.getElementById('ck-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('ck-paste').value='';
   loadChickenTable();
 }
 async function loadChickenTable(){
@@ -408,12 +539,13 @@ async function loadChickenTable(){
   const rows = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
   document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>`
     <tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
-    <td style="color:var(--amber);">${fmt(r.calc_wood_kg)}</td><td>${r.recorded_by||''}</td></tr>`).join('')
-    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+    <td style="color:var(--amber);">${fmt(r.calc_wood_kg)}</td><td>${r.recorded_by||''}</td>
+    <td><button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
-   PURCHASE PLAN
+   PURCHASE PLAN (per-supplier toggle paste-zone — ported)
 ============================================================ */
 let SUPPLIERS_CACHE = null;
 async function loadSuppliers(){
@@ -421,13 +553,12 @@ async function loadSuppliers(){
   SUPPLIERS_CACHE = await rpc('get_suppliers', { p_token: SESSION.token });
   return SUPPLIERS_CACHE;
 }
-
 async function renderPurchase(){
   const suppliers = await loadSuppliers();
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">แผนสั่งซื้อ</h2>
     <div class="card">
-      <h3 style="margin-top:0;">บันทึกแผนสั่งซื้อ</h3>
+      <h3 class="card-title" style="margin-top:0;">บันทึกแผนสั่งซื้อ</h3>
       <div class="toolbar">
         <div class="field"><label>วันที่</label><input type="date" id="pp-date" value="${todayISO()}"></div>
         <div class="field"><label>ซัพพลายเออร์</label><select id="pp-supplier">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
@@ -435,15 +566,24 @@ async function renderPurchase(){
         <button class="btn btn-primary" onclick="savePurchasePlan()">บันทึก</button>
       </div>
       <div id="pp-result" class="hint"></div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleZone('pp-paste-zone')">📋 วางจาก Google Sheets</button>
+      <div class="paste-zone hide" id="pp-paste-zone">
+        <label>ซัพพลายเออร์สำหรับนำเข้า</label>
+        <select id="pp-paste-supplier" style="margin-bottom:8px;background:var(--navy-2);border:1px solid var(--line);color:var(--ink);padding:6px 8px;border-radius:5px;">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+        <label>วันที่ [Tab] จำนวนพ่วง (หรือ กก.)</label>
+        <textarea id="pp-paste" rows="5" placeholder="เช่น&#10;26/4/2026&#9;2&#10;27/4/2026&#9;3"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewPurchasePaste()">ดูตัวอย่าง</button>
+      </div>
+      <div id="pp-preview"></div>
     </div>
     <div class="card section-gap">
       <div class="toolbar">
         <div class="field"><label>จากวันที่</label><input type="date" id="pp-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="pp-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadPurchaseTable()">ค้นหา</button>
-        <button class="btn btn-danger" onclick="deleteRange('purchase_plan','pp-from','pp-to')">ลบข้อมูลในช่วงนี้</button>
+        <button class="btn btn-danger" onclick="deleteRange('purchase_plan','pp-from','pp-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="pp-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>สถานะ</th></tr></thead><tbody></tbody></table>
+      <table id="pp-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>สถานะ</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadPurchaseTable();
 }
@@ -457,24 +597,46 @@ async function savePurchasePlan(){
     : `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.planned_kg)} กก.</span>`;
   loadPurchaseTable();
 }
+function previewPurchasePaste(){
+  const rows = parsePastedSheet(document.getElementById('pp-paste').value, 2);
+  const box = document.getElementById('pp-preview');
+  if(!rows.length){ box.innerHTML='<div class="hint">ไม่พบข้อมูลที่แปลงได้</div>'; return; }
+  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>พ่วง/กก.</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="ppp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
+    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmPurchaseImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+  window._ppPasteRows = rows;
+}
+async function confirmPurchaseImport(n){
+  const supplierId = document.getElementById('pp-paste-supplier').value;
+  let ok=0;
+  for(let i=0;i<n;i++){
+    const row = window._ppPasteRows[i];
+    const val = parseFloat(document.getElementById('ppp-'+i).value || 0);
+    try{ await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val }); ok++; }catch(e){}
+  }
+  document.getElementById('pp-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('pp-paste').value='';
+  loadPurchaseTable();
+}
 async function loadPurchaseTable(){
   const from = document.getElementById('pp-from').value, to = document.getElementById('pp-to').value;
   const rows = await rpc('get_purchase_plan', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
   document.querySelector('#pp-table tbody').innerHTML = (rows||[]).map(r=>`
     <tr><td>${r.plan_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.planned_trailers)}</td>
-    <td>${fmt(r.planned_kg)}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td></tr>`).join('')
-    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+    <td>${fmt(r.planned_kg)}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td>
+    <td><button class="row-del" onclick="deleteRow('purchase_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
-   WOOD RECEIPT
+   WOOD RECEIPT (paste supports 3 cols: date, kg, receipt no)
 ============================================================ */
 async function renderReceipt(){
   const suppliers = await loadSuppliers();
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">บันทึกรับไม้จริง</h2>
     <div class="card">
-      <h3 style="margin-top:0;">บันทึกการรับไม้</h3>
+      <h3 class="card-title" style="margin-top:0;">บันทึกการรับไม้</h3>
       <div class="toolbar">
         <div class="field"><label>วันที่</label><input type="date" id="wr-date" value="${todayISO()}"></div>
         <div class="field"><label>ซัพพลายเออร์</label><select id="wr-supplier">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
@@ -483,15 +645,24 @@ async function renderReceipt(){
         <button class="btn btn-primary" onclick="saveWoodReceipt()">บันทึก</button>
       </div>
       <div id="wr-result" class="hint"></div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleZone('wr-paste-zone')">📋 วางจาก Google Sheets</button>
+      <div class="paste-zone hide" id="wr-paste-zone">
+        <label>ซัพพลายเออร์สำหรับนำเข้า</label>
+        <select id="wr-paste-supplier" style="margin-bottom:8px;background:var(--navy-2);border:1px solid var(--line);color:var(--ink);padding:6px 8px;border-radius:5px;">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+        <label>วันที่ [Tab] น้ำหนักจริง กก. [Tab] เลขใบชั่ง (ไม่บังคับ)</label>
+        <textarea id="wr-paste" rows="5" placeholder="เช่น&#10;26/4/2026&#9;27300&#9;WB-1029"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewReceiptPaste()">ดูตัวอย่าง</button>
+      </div>
+      <div id="wr-preview"></div>
     </div>
     <div class="card section-gap">
       <div class="toolbar">
         <div class="field"><label>จากวันที่</label><input type="date" id="wr-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="wr-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadReceiptTable()">ค้นหา</button>
-        <button class="btn btn-danger" onclick="deleteRange('wood_receipt','wr-from','wr-to')">ลบข้อมูลในช่วงนี้</button>
+        <button class="btn btn-danger" onclick="deleteRange('wood_receipt','wr-from','wr-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>เลขที่</th><th>สถานะ</th></tr></thead><tbody></tbody></table>
+      <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>เลขที่</th><th>สถานะ</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadReceiptTable();
 }
@@ -506,17 +677,40 @@ async function saveWoodReceipt(){
     : `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.actual_kg)} กก.</span>`;
   loadReceiptTable();
 }
+function previewReceiptPaste(){
+  const rows = parsePastedSheet(document.getElementById('wr-paste').value, 3);
+  const box = document.getElementById('wr-preview');
+  if(!rows.length){ box.innerHTML='<div class="hint">ไม่พบข้อมูลที่แปลงได้</div>'; return; }
+  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>กก.</th><th>เลขที่</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="wrp-${i}" value="${r.value}"></td><td><input type="text" id="wrpn-${i}" value="${r.extra||''}"></td></tr>`).join('')}</tbody></table>
+    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmReceiptImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+  window._wrPasteRows = rows;
+}
+async function confirmReceiptImport(n){
+  const supplierId = document.getElementById('wr-paste-supplier').value;
+  let ok=0;
+  for(let i=0;i<n;i++){
+    const row = window._wrPasteRows[i];
+    const val = parseFloat(document.getElementById('wrp-'+i).value || 0);
+    const rn = document.getElementById('wrpn-'+i).value;
+    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val, p_receipt_no: rn }); ok++; }catch(e){}
+  }
+  document.getElementById('wr-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('wr-paste').value='';
+  loadReceiptTable();
+}
 async function loadReceiptTable(){
   const from = document.getElementById('wr-from').value, to = document.getElementById('wr-to').value;
   const rows = await rpc('get_wood_receipt', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
   document.querySelector('#wr-table tbody').innerHTML = (rows||[]).map(r=>`
     <tr><td>${r.receipt_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.trailers)}</td>
-    <td>${fmt(r.actual_kg)}</td><td>${r.receipt_no||''}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td></tr>`).join('')
-    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
+    <td>${fmt(r.actual_kg)}</td><td>${r.receipt_no||''}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td>
+    <td><button class="row-del" onclick="deleteRow('wood_receipt','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="7">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
-   STEAM USAGE
+   STEAM USAGE (+ SEC column, paste zone, per-row delete)
 ============================================================ */
 async function renderSteam(){
   document.getElementById('content').innerHTML = `
@@ -528,15 +722,22 @@ async function renderSteam(){
         <button class="btn btn-primary" onclick="saveSteam()">บันทึก</button>
       </div>
       <div id="st-result" class="hint"></div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleZone('st-paste-zone')">📋 วางจาก Google Sheets</button>
+      <div class="paste-zone hide" id="st-paste-zone">
+        <label>วันที่ [Tab] ไอน้ำ กก.</label>
+        <textarea id="st-paste" rows="5" placeholder="เช่น 26/4/2026&#9;85000"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewSteamPaste()">ดูตัวอย่าง</button>
+      </div>
+      <div id="st-preview"></div>
     </div>
     <div class="card section-gap">
       <div class="toolbar">
         <div class="field"><label>จากวันที่</label><input type="date" id="st-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="st-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadSteamTable()">ค้นหา</button>
-        <button class="btn btn-danger" onclick="deleteRange('steam_usage','st-from','st-to')">ลบข้อมูลในช่วงนี้</button>
+        <button class="btn btn-danger" onclick="deleteRange('steam_usage','st-from','st-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="st-table"><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th><th>บันทึกโดย</th></tr></thead><tbody></tbody></table>
+      <table id="st-table"><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th><th>ไก่ (กก.)</th><th>SEC (kg/kg)</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadSteamTable();
 }
@@ -547,16 +748,44 @@ async function saveSteam(){
   document.getElementById('st-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว</span>`;
   loadSteamTable();
 }
+function previewSteamPaste(){
+  const rows = parsePastedSheet(document.getElementById('st-paste').value, 2);
+  const box = document.getElementById('st-preview');
+  if(!rows.length){ box.innerHTML='<div class="hint">ไม่พบข้อมูลที่แปลงได้</div>'; return; }
+  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="stp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
+    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmSteamImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+  window._stPasteRows = rows;
+}
+async function confirmSteamImport(n){
+  let ok=0;
+  for(let i=0;i<n;i++){
+    const row = window._stPasteRows[i];
+    const val = parseFloat(document.getElementById('stp-'+i).value || 0);
+    try{ await rpc('save_steam_usage', { p_token: SESSION.token, p_date: row.date, p_steam_kg: val }); ok++; }catch(e){}
+  }
+  document.getElementById('st-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('st-paste').value='';
+  loadSteamTable();
+}
 async function loadSteamTable(){
   const from = document.getElementById('st-from').value, to = document.getElementById('st-to').value;
-  const rows = await rpc('get_steam_usage', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
-  document.querySelector('#st-table tbody').innerHTML = (rows||[]).map(r=>`
-    <tr><td>${r.usage_date}</td><td>${fmt(r.steam_kg)}</td><td>${r.recorded_by||''}</td></tr>`).join('')
-    || '<tr><td colspan="3">ไม่มีข้อมูล</td></tr>';
+  const [steamRows, ck] = await Promise.all([
+    rpc('get_steam_usage', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to })
+  ]);
+  const chickenMap = {}; (ck.chicken_plan||[]).forEach(c=>chickenMap[c.plan_date]=c.planned_chicken_kg);
+  document.querySelector('#st-table tbody').innerHTML = (steamRows||[]).map(r=>{
+    const chk = chickenMap[r.usage_date];
+    const sec = (chk && r.steam_kg) ? (r.steam_kg/chk) : null;
+    return `<tr><td>${r.usage_date}</td><td>${fmt(r.steam_kg)}</td><td>${chk?fmt(chk):'-'}</td>
+    <td style="color:var(--purp);">${sec?fmt(sec,3):'-'}</td><td>${r.recorded_by||''}</td>
+    <td><button class="row-del" onclick="deleteRow('steam_usage','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`;
+  }).join('') || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
-   SUPPLIER VIEW (own schedule only)
+   SUPPLIER VIEW
 ============================================================ */
 async function renderSupplierView(){
   document.getElementById('content').innerHTML = `
@@ -580,13 +809,13 @@ async function loadSupplierSchedule(){
 }
 
 /* ============================================================
-   REPORTS
+   REPORTS (+ weekly aggregation — ported from old system)
 ============================================================ */
 async function renderReports(){
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">รายงาน SEC</h2>
     <div class="toolbar">
-      <div class="field"><label>จากวันที่</label><input type="date" id="rp-from" value="${daysAgoISO(6)}"></div>
+      <div class="field"><label>จากวันที่</label><input type="date" id="rp-from" value="${daysAgoISO(27)}"></div>
       <div class="field"><label>ถึงวันที่</label><input type="date" id="rp-to" value="${todayISO()}"></div>
       <button class="btn btn-primary" onclick="loadReports()">สร้างรายงาน</button>
     </div>
@@ -595,18 +824,42 @@ async function renderReports(){
 }
 async function loadReports(){
   const from = document.getElementById('rp-from').value, to = document.getElementById('rp-to').value;
-  const r = await rpc('get_reports', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  const [r, dash] = await Promise.all([
+    rpc('get_reports', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to })
+  ]);
+  const chicken = dash.chicken_plan || [], steam = dash.steam_usage || [];
+  const steamMap = {}; steam.forEach(s=>steamMap[s.usage_date]=s.steam_kg);
+
+  // จัดกลุ่มรายสัปดาห์
+  const weekly = {};
+  chicken.forEach(c=>{
+    const wk = isoWeek(c.plan_date);
+    weekly[wk] = weekly[wk] || { week:wk, chicken:0, wood:0, steam:0 };
+    weekly[wk].chicken += c.planned_chicken_kg||0;
+    weekly[wk].wood += c.calc_wood_kg||0;
+    weekly[wk].steam += steamMap[c.plan_date]||0;
+  });
+  const weeklyRows = Object.values(weekly).sort((a,b)=>a.week.localeCompare(b.week));
+
   document.getElementById('rp-body').innerHTML = `
     <div class="grid grid-4">
-      <div class="card stat-card"><div class="label">ไก่รวม (กก.)</div><div class="value">${fmt(r.total_planned_chicken_kg)}</div></div>
-      <div class="card stat-card"><div class="label">ไม้สับที่ต้องใช้ (กก.)</div><div class="value amber">${fmt(r.total_calc_wood_kg)}</div></div>
-      <div class="card stat-card"><div class="label">ไม้สับที่รับจริง (กก.)</div><div class="value green">${fmt(r.total_received_kg)}</div></div>
-      <div class="card stat-card"><div class="label">ไอน้ำรวม (กก.)</div><div class="value">${fmt(r.total_steam_kg)}</div></div>
+      <div class="card stat blue"><div class="label">ไก่รวม (กก.)</div><div class="value">${fmt(r.total_planned_chicken_kg)}</div></div>
+      <div class="card stat amber"><div class="label">ไม้สับที่ต้องใช้ (กก.)</div><div class="value">${fmt(r.total_calc_wood_kg)}</div></div>
+      <div class="card stat green"><div class="label">ไม้สับที่รับจริง (กก.)</div><div class="value">${fmt(r.total_received_kg)}</div></div>
+      <div class="card stat purp"><div class="label">ไอน้ำรวม (กก.)</div><div class="value">${fmt(r.total_steam_kg)}</div></div>
     </div>
-    <div class="card section-gap">
-      <h3 style="margin-top:0;">แยกตามซัพพลายเออร์</h3>
-      <table><thead><tr><th>ซัพพลายเออร์</th><th>รวม (กก.)</th><th>จำนวนพ่วง</th></tr></thead>
-      <tbody>${(r.by_supplier||[]).map(s=>`<tr><td>${s.supplier_name||''}</td><td>${fmt(s.total_kg)}</td><td>${fmt(s.total_trailers)}</td></tr>`).join('') || '<tr><td colspan="3">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+    <div class="grid grid-2 section-gap">
+      <div class="card">
+        <h3 class="card-title" style="margin-top:0;">แยกตามซัพพลายเออร์</h3>
+        <table><thead><tr><th>ซัพพลายเออร์</th><th>รวม (กก.)</th><th>จำนวนพ่วง</th></tr></thead>
+        <tbody>${(r.by_supplier||[]).map(s=>`<tr><td>${s.supplier_name||''}</td><td>${fmt(s.total_kg)}</td><td>${fmt(s.total_trailers)}</td></tr>`).join('') || '<tr><td colspan="3">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+      </div>
+      <div class="card">
+        <h3 class="card-title" style="margin-top:0;">สรุปรายสัปดาห์ (SEC)</h3>
+        <table><thead><tr><th>สัปดาห์</th><th>ไก่ (กก.)</th><th>ไม้ (กก.)</th><th>ไอน้ำ (กก.)</th><th>SEC</th></tr></thead>
+        <tbody>${weeklyRows.map(w=>`<tr><td>${w.week}</td><td>${fmt(w.chicken)}</td><td>${fmt(w.wood)}</td><td>${fmt(w.steam)}</td><td style="color:var(--purp);">${w.chicken?fmt(w.steam/w.chicken,3):'-'}</td></tr>`).join('') || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+      </div>
     </div>`;
 }
 
@@ -631,13 +884,13 @@ async function switchSettingsTab(t){
     const rows = await rpc('get_sys_config', { p_token: SESSION.token });
     body.innerHTML = `<div class="card"><table><thead><tr><th>Key</th><th>ค่า</th><th>คำอธิบาย</th><th></th></tr></thead>
       <tbody>${rows.map(r=>`<tr><td>${r.key}</td><td><input type="text" value="${r.value}" id="cfg-${r.key}" style="width:140px;background:var(--navy);border:1px solid var(--line);color:var(--ink);padding:4px 8px;border-radius:4px;"></td>
-      <td style="font-family:var(--font-body);">${r.description||''}</td><td><button class="btn btn-secondary" onclick="saveConfig('${r.key}')">บันทึก</button></td></tr>`).join('')}</tbody></table></div>`;
+      <td style="font-family:var(--font-body);">${r.description||''}</td><td><button class="btn btn-secondary btn-sm" onclick="saveConfig('${r.key}')">บันทึก</button></td></tr>`).join('')}</tbody></table></div>`;
   } else if(t==='suppliers'){
     const rows = await loadSuppliers();
     body.innerHTML = `<div class="card">
       <table><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th></tr></thead>
       <tbody>${rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'-'}</td></tr>`).join('')}</tbody></table>
-      <h3>เพิ่มซัพพลายเออร์ใหม่</h3>
+      <h3 class="card-title section-gap">เพิ่มซัพพลายเออร์ใหม่</h3>
       <div class="toolbar">
         <div class="field"><label>ชื่อบริษัท</label><input id="ns-name"></div>
         <div class="field"><label>ผู้ติดต่อ</label><input id="ns-contact"></div>
@@ -647,7 +900,7 @@ async function switchSettingsTab(t){
       </div></div>`;
   } else if(t==='users'){
     body.innerHTML = `<div class="card">
-      <h3 style="margin-top:0;">เพิ่มผู้ใช้งาน (รหัสผ่านตั้งต้น 123456789 บังคับเปลี่ยนตอน login ครั้งแรก)</h3>
+      <h3 class="card-title" style="margin-top:0;">เพิ่มผู้ใช้งาน (รหัสผ่านตั้งต้น 123456789 บังคับเปลี่ยนตอน login ครั้งแรก)</h3>
       <div class="toolbar">
         <div class="field"><label>Username</label><input id="nu-username"></div>
         <div class="field"><label>Role</label><select id="nu-role"><option>ENG</option><option>PUR</option><option>STO</option><option>PRD</option><option>ADMIN</option></select></div>
@@ -655,7 +908,7 @@ async function switchSettingsTab(t){
         <button class="btn btn-primary" onclick="addUser()">เพิ่มผู้ใช้</button>
       </div>
       <div class="section-gap">
-        <h3>รีเซ็ตรหัสผ่าน</h3>
+        <h3 class="card-title">รีเซ็ตรหัสผ่าน</h3>
         <div class="toolbar">
           <div class="field"><label>Username</label><input id="rp-username"></div>
           <button class="btn btn-secondary" onclick="resetUserPw()">รีเซ็ตเป็น 123456789</button>
@@ -666,6 +919,7 @@ async function switchSettingsTab(t){
 async function saveConfig(key){
   const val = document.getElementById('cfg-'+key).value;
   await rpc('update_sys_config', { p_token: SESSION.token, p_key: key, p_value: val });
+  SYS_CONFIG_CACHE = null;
   switchSettingsTab('formula');
 }
 async function addSupplier(){
@@ -687,13 +941,18 @@ async function resetUserPw(){
 }
 
 /* ============================================================
-   DELETE RANGE
+   DELETE (range + per-row)
 ============================================================ */
 async function deleteRange(table, fromId, toId){
   const from = document.getElementById(fromId).value, to = document.getElementById(toId).value;
   if(!confirm(`ยืนยันลบข้อมูลตั้งแต่ ${from} ถึง ${to}? การกระทำนี้ไม่สามารถย้อนกลับได้`)) return;
   const count = await rpc('delete_records', { p_token: SESSION.token, p_table: table, p_date_from: from, p_date_to: to });
   alert(`ลบข้อมูล ${count} แถวเรียบร้อย`);
+  router();
+}
+async function deleteRow(table, id){
+  if(!confirm('ยืนยันลบแถวนี้?')) return;
+  await rpc('delete_record_by_id', { p_token: SESSION.token, p_table: table, p_id: id });
   router();
 }
 
