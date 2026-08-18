@@ -291,7 +291,18 @@ function router(){
     purchase:renderPurchase, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
     reports:renderReports, settings:renderSettings }[page];
   document.getElementById('content').innerHTML = '<div class="loading-box"><div class="spin"></div>กำลังโหลด...</div>';
-  if(renderFn) renderFn();
+  if(renderFn) safeRender(renderFn);
+}
+// ป้องกันหน้าค้างที่ "กำลังโหลด..." ตลอดไปเมื่อ RPC error — โชว์ข้อความ error แทน
+async function safeRender(fn){
+  try{
+    await fn();
+  }catch(e){
+    console.error(e);
+    document.getElementById('content').innerHTML =
+      `<div class="err-msg">โหลดข้อมูลไม่สำเร็จ: ${(e && e.message) || e}<br>
+       <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="router()">ลองใหม่</button></div>`;
+  }
 }
 function defaultHashFor(role){ return role==='SUP' ? '#supplier' : '#dashboard'; }
 
@@ -327,11 +338,15 @@ async function getConfigMap(){
 }
 
 function parsePastedSheet(text, cols){
-  // cols: number of expected columns (2 or 3). รองรับ Tab/comma separated, ข้าม header อัตโนมัติ
+  // cols: number of expected columns (2 or 3).
+  // สำคัญ: ต้องแยกด้วย Tab ก่อนเสมอ (แบบที่ Google Sheets คั่นคอลัมน์)
+  // ห้าม split ด้วย comma ปนกัน เพราะตัวเลขในชีทมี comma คั่นหลักพัน (เช่น 186,502.00)
+  // ถ้า split ด้วย comma ไปด้วยจะตัดตัวเลขให้ขาดกลางคัน (อ่านได้แค่ 3 หลักแรก)
   const rows = [];
   text.split('\n').forEach(line=>{
     line = line.trim(); if(!line) return;
-    const parts = line.split(/\t|,/).map(s=>s.trim());
+    const parts = (line.includes('\t') ? line.split('\t') : line.split(','))
+      .map(s=>s.trim());
     if(parts.length < 2) return;
     const d = parseFlexDate(parts[0]);
     const v = parseFloat((parts[1]||'').replace(/,/g,''));
@@ -510,27 +525,35 @@ async function saveChickenField(t){
   loadChickenTable();
 }
 async function previewChickenPaste(t){
+  document.getElementById('ck-result').innerHTML=''; // เคลียร์ข้อความบันทึกรายวันเดิม กันสับสนกับผลนำเข้า
   const rows = parsePastedSheet(document.getElementById('ck-paste').value, 2);
-  const cfg = await getConfigMap();
   const box = document.getElementById('ck-preview');
-  if(!rows.length){ box.innerHTML = '<div class="hint">ไม่พบข้อมูลที่แปลงได้ ตรวจรูปแบบวันที่/ตัวเลข</div>'; return; }
-  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>${t==='chicken'?'น้ำหนักไก่':'ขนไก่'} (กก.)</th></tr></thead>
+  if(!rows.length){ box.innerHTML = '<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์ (คัดลอกจาก Sheets โดยตรง) และคอลัมน์แรกเป็นวันที่</div>'; return; }
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว ตรวจสอบตัวเลขก่อนยืนยัน (แก้ไขได้ในช่องด้านล่าง):</div>
+    <div class="preview-table"><table><thead><tr><th>วันที่</th><th>${t==='chicken'?'น้ำหนักไก่':'ขนไก่'} (กก.)</th></tr></thead>
     <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="ckp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
-    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmChickenImport('${t}', ${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+    <button class="btn btn-primary btn-sm" id="ck-import-btn" style="margin-top:10px;" onclick="confirmChickenImport('${t}', ${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
+    <div id="ck-import-status" class="hint"></div></div>`;
   window._ckPasteRows = rows;
 }
 async function confirmChickenImport(t, n){
-  let ok=0;
+  const btn = document.getElementById('ck-import-btn');
+  const status = document.getElementById('ck-import-status');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
+  let ok=0, failed=[];
   for(let i=0;i<n;i++){
     const row = window._ckPasteRows[i];
+    status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
     const val = parseFloat(document.getElementById('ckp-'+i).value || 0);
     try{
       await rpc('save_chicken_plan', { p_token: SESSION.token, p_date: row.date,
         p_chicken_kg: t==='chicken' ? val : null, p_feathers_kg: t==='feathers' ? val : null });
       ok++;
-    }catch(e){}
+    }catch(e){ failed.push(row.date+': '+e.message); }
   }
-  document.getElementById('ck-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('ck-preview').innerHTML = ok===n
+    ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
+    : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} แถว — รายการที่ล้มเหลว:<br>${failed.join('<br>')}</div>`;
   document.getElementById('ck-paste').value='';
   loadChickenTable();
 }
@@ -598,23 +621,30 @@ async function savePurchasePlan(){
   loadPurchaseTable();
 }
 function previewPurchasePaste(){
+  document.getElementById('pp-result').innerHTML='';
   const rows = parsePastedSheet(document.getElementById('pp-paste').value, 2);
   const box = document.getElementById('pp-preview');
-  if(!rows.length){ box.innerHTML='<div class="hint">ไม่พบข้อมูลที่แปลงได้</div>'; return; }
-  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>พ่วง/กก.</th></tr></thead>
+  if(!rows.length){ box.innerHTML='<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์</div>'; return; }
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>พ่วง/กก.</th></tr></thead>
     <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="ppp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
-    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmPurchaseImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+    <button class="btn btn-primary btn-sm" id="pp-import-btn" style="margin-top:10px;" onclick="confirmPurchaseImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
+    <div id="pp-import-status" class="hint"></div></div>`;
   window._ppPasteRows = rows;
 }
 async function confirmPurchaseImport(n){
+  const btn = document.getElementById('pp-import-btn'); const status = document.getElementById('pp-import-status');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
   const supplierId = document.getElementById('pp-paste-supplier').value;
-  let ok=0;
+  let ok=0, failed=[];
   for(let i=0;i<n;i++){
     const row = window._ppPasteRows[i];
+    status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
     const val = parseFloat(document.getElementById('ppp-'+i).value || 0);
-    try{ await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val }); ok++; }catch(e){}
+    try{ await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
   }
-  document.getElementById('pp-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('pp-preview').innerHTML = ok===n
+    ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
+    : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} แถว — ล้มเหลว:<br>${failed.join('<br>')}</div>`;
   document.getElementById('pp-paste').value='';
   loadPurchaseTable();
 }
@@ -678,24 +708,31 @@ async function saveWoodReceipt(){
   loadReceiptTable();
 }
 function previewReceiptPaste(){
+  document.getElementById('wr-result').innerHTML='';
   const rows = parsePastedSheet(document.getElementById('wr-paste').value, 3);
   const box = document.getElementById('wr-preview');
-  if(!rows.length){ box.innerHTML='<div class="hint">ไม่พบข้อมูลที่แปลงได้</div>'; return; }
-  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>กก.</th><th>เลขที่</th></tr></thead>
+  if(!rows.length){ box.innerHTML='<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์</div>'; return; }
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>กก.</th><th>เลขที่</th></tr></thead>
     <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="wrp-${i}" value="${r.value}"></td><td><input type="text" id="wrpn-${i}" value="${r.extra||''}"></td></tr>`).join('')}</tbody></table>
-    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmReceiptImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+    <button class="btn btn-primary btn-sm" id="wr-import-btn" style="margin-top:10px;" onclick="confirmReceiptImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
+    <div id="wr-import-status" class="hint"></div></div>`;
   window._wrPasteRows = rows;
 }
 async function confirmReceiptImport(n){
+  const btn = document.getElementById('wr-import-btn'); const status = document.getElementById('wr-import-status');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
   const supplierId = document.getElementById('wr-paste-supplier').value;
-  let ok=0;
+  let ok=0, failed=[];
   for(let i=0;i<n;i++){
     const row = window._wrPasteRows[i];
+    status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
     const val = parseFloat(document.getElementById('wrp-'+i).value || 0);
     const rn = document.getElementById('wrpn-'+i).value;
-    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val, p_receipt_no: rn }); ok++; }catch(e){}
+    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val, p_receipt_no: rn }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
   }
-  document.getElementById('wr-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('wr-preview').innerHTML = ok===n
+    ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
+    : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} แถว — ล้มเหลว:<br>${failed.join('<br>')}</div>`;
   document.getElementById('wr-paste').value='';
   loadReceiptTable();
 }
@@ -749,22 +786,29 @@ async function saveSteam(){
   loadSteamTable();
 }
 function previewSteamPaste(){
+  document.getElementById('st-result').innerHTML='';
   const rows = parsePastedSheet(document.getElementById('st-paste').value, 2);
   const box = document.getElementById('st-preview');
-  if(!rows.length){ box.innerHTML='<div class="hint">ไม่พบข้อมูลที่แปลงได้</div>'; return; }
-  box.innerHTML = `<div class="preview-table"><table><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th></tr></thead>
+  if(!rows.length){ box.innerHTML='<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์</div>'; return; }
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th></tr></thead>
     <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="stp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
-    <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmSteamImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button></div>`;
+    <button class="btn btn-primary btn-sm" id="st-import-btn" style="margin-top:10px;" onclick="confirmSteamImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
+    <div id="st-import-status" class="hint"></div></div>`;
   window._stPasteRows = rows;
 }
 async function confirmSteamImport(n){
-  let ok=0;
+  const btn = document.getElementById('st-import-btn'); const status = document.getElementById('st-import-status');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
+  let ok=0, failed=[];
   for(let i=0;i<n;i++){
     const row = window._stPasteRows[i];
+    status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
     const val = parseFloat(document.getElementById('stp-'+i).value || 0);
-    try{ await rpc('save_steam_usage', { p_token: SESSION.token, p_date: row.date, p_steam_kg: val }); ok++; }catch(e){}
+    try{ await rpc('save_steam_usage', { p_token: SESSION.token, p_date: row.date, p_steam_kg: val }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
   }
-  document.getElementById('st-preview').innerHTML = `<div class="ok-msg">นำเข้าสำเร็จ ${ok}/${n} แถว</div>`;
+  document.getElementById('st-preview').innerHTML = ok===n
+    ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
+    : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} แถว — ล้มเหลว:<br>${failed.join('<br>')}</div>`;
   document.getElementById('st-paste').value='';
   loadSteamTable();
 }
