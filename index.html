@@ -339,7 +339,7 @@ async function getConfigMap(){
 }
 
 function parsePastedSheet(text, cols){
-  // cols: number of expected columns (2 or 3).
+  // cols: จำนวนคอลัมน์ที่ต้องการ (2, 3 หรือ 4)
   // สำคัญ: ต้องแยกด้วย Tab ก่อนเสมอ (แบบที่ Google Sheets คั่นคอลัมน์)
   // ห้าม split ด้วย comma ปนกัน เพราะตัวเลขในชีทมี comma คั่นหลักพัน (เช่น 186,502.00)
   // ถ้า split ด้วย comma ไปด้วยจะตัดตัวเลขให้ขาดกลางคัน (อ่านได้แค่ 3 หลักแรก)
@@ -353,7 +353,8 @@ function parsePastedSheet(text, cols){
     const v = parseFloat((parts[1]||'').replace(/,/g,''));
     if(!d || isNaN(v)) return;
     const row = { date:d, value:v };
-    if(cols===3) row.extra = parts[2] || '';
+    if(cols>=3) row.extra = parts[2] || '';
+    if(cols>=4) row.extra2 = parts[3] || '';
     rows.push(row);
   });
   return rows;
@@ -448,6 +449,7 @@ async function renderDashboard(){
 async function renderInventory(){
   const from = daysAgoISO(29), to = todayISO();
   const cfg = await getConfigMap();
+  const isAdmin = SESSION.role === 'ADMIN';
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">สต็อกคลัง</h2>
     <div class="toolbar">
@@ -455,8 +457,23 @@ async function renderInventory(){
       <div class="field"><label>ถึงวันที่</label><input type="date" id="inv-to" value="${to}"></div>
       <button class="btn btn-primary" onclick="loadInventoryTable()">ค้นหา</button>
     </div>
-    <div class="card"><table id="inv-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับเข้า</th><th>ใช้ไป</th><th>คงเหลือ</th><th>%</th></tr></thead><tbody></tbody></table></div>`;
+    <div class="card"><table id="inv-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับเข้า</th><th>ใช้ไป</th><th>ปรับปรุง</th><th>คงเหลือ</th><th>%</th></tr></thead><tbody></tbody></table></div>
+    ${isAdmin ? `
+    <div class="card section-gap">
+      <h3 class="card-title" style="margin-top:0;">🔧 Stock Adjustment (Admin เท่านั้น)</h3>
+      <div class="hint" style="margin-bottom:12px;">ใช้ปรับยอดสต็อกกรณีมี diff สะสมจากการรับ-จ่ายจริงกับที่ระบบคำนวณ เช่น นับสต็อกจริงแล้วไม่ตรง หรือต้องยกยอดตอนเริ่มใช้ระบบ — ใส่ค่าบวกถ้าต้องเพิ่ม ใส่ค่าลบถ้าต้องลด</div>
+      <div class="toolbar">
+        <div class="field"><label>วันที่</label><input type="date" id="adj-date" value="${todayISO()}"></div>
+        <div class="field"><label>ปรับ (กก. — ใส่ - หน้าตัวเลขถ้าต้องการลด)</label><input type="number" id="adj-kg" placeholder="เช่น -1500 หรือ 2000"></div>
+        <div class="field" style="min-width:220px;"><label>เหตุผล</label><input type="text" id="adj-reason" placeholder="เช่น นับสต็อกจริงไม่ตรง"></div>
+        <button class="btn btn-primary" onclick="saveStockAdjustment()">บันทึกการปรับ</button>
+      </div>
+      <div id="adj-result" class="hint"></div>
+      <h3 class="card-title section-gap">ประวัติการปรับสต็อก</h3>
+      <table id="adj-table"><thead><tr><th>วันที่</th><th>ปรับ (กก.)</th><th>เหตุผล</th><th>โดย</th><th>เมื่อ</th></tr></thead><tbody></tbody></table>
+    </div>` : ''}`;
   loadInventoryTable();
+  if(isAdmin) loadStockAdjustments();
 }
 async function loadInventoryTable(){
   const from = document.getElementById('inv-from').value, to = document.getElementById('inv-to').value;
@@ -465,9 +482,33 @@ async function loadInventoryTable(){
   const rows = await rpc('get_inventory', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
   document.querySelector('#inv-table tbody').innerHTML = (rows||[]).map(r=>{
     const pct = maxStock>0 ? Math.round((r.closing_stock_kg/maxStock)*100) : 0;
+    const adj = r.adjustment_kg || 0;
     return `<tr><td>${r.inv_date}</td><td>${fmt(r.opening_stock_kg)}</td><td>${fmt(r.received_kg)}</td>
-    <td>${fmt(r.used_kg)}</td><td style="color:var(--amber);font-weight:700;">${fmt(r.closing_stock_kg)}</td><td>${pct}%</td></tr>`;
-  }).join('') || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
+    <td>${fmt(r.used_kg)}</td><td style="${adj!==0?'color:var(--purp);font-weight:700;':''}">${adj!==0?(adj>0?'+':'')+fmt(adj):'-'}</td>
+    <td style="color:var(--amber);font-weight:700;">${fmt(r.closing_stock_kg)}</td><td>${pct}%</td></tr>`;
+  }).join('') || '<tr><td colspan="7">ไม่มีข้อมูล</td></tr>';
+}
+async function saveStockAdjustment(){
+  const msg = document.getElementById('adj-result');
+  const date = document.getElementById('adj-date').value;
+  const kg = parseFloat(document.getElementById('adj-kg').value || 0);
+  const reason = document.getElementById('adj-reason').value.trim();
+  if(!kg){ msg.innerHTML = '<div class="err-msg">กรุณาใส่จำนวนที่ต้องการปรับ (ไม่เป็น 0)</div>'; return; }
+  if(!reason){ msg.innerHTML = '<div class="err-msg">กรุณาระบุเหตุผลการปรับสต็อก เพื่อการตรวจสอบย้อนหลัง</div>'; return; }
+  if(!confirm(`ยืนยันปรับสต็อกวันที่ ${date} จำนวน ${kg>0?'+':''}${kg} กก.?`)) return;
+  try{
+    await rpc('save_stock_adjustment', { p_token: SESSION.token, p_date: date, p_adjustment_kg: kg, p_reason: reason });
+    msg.innerHTML = '<div class="ok-msg">✅ บันทึกการปรับสต็อกแล้ว — สต็อกคำนวณใหม่ตั้งแต่วันที่นี้เป็นต้นไป</div>';
+    document.getElementById('adj-kg').value=''; document.getElementById('adj-reason').value='';
+    loadInventoryTable(); loadStockAdjustments();
+  }catch(e){ msg.innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message}</div>`; }
+}
+async function loadStockAdjustments(){
+  const rows = await rpc('get_stock_adjustments', { p_token: SESSION.token, p_date_from: daysAgoISO(365), p_date_to: daysAgoISO(-365) });
+  document.querySelector('#adj-table tbody').innerHTML = (rows||[]).map(r=>`
+    <tr><td>${r.inv_date}</td><td style="color:var(--purp);font-weight:700;">${r.adjustment_kg>0?'+':''}${fmt(r.adjustment_kg)}</td>
+    <td>${r.adjustment_reason||''}</td><td>${r.adjusted_by||''}</td><td>${(r.adjusted_at||'').replace('T',' ').slice(0,16)}</td></tr>`).join('')
+    || '<tr><td colspan="5">ยังไม่มีการปรับสต็อก</td></tr>';
 }
 
 /* ============================================================
@@ -607,7 +648,7 @@ async function renderPurchase(){
         <button class="btn btn-secondary" onclick="loadPurchaseTable()">ค้นหา</button>
         <button class="btn btn-danger" onclick="deleteRange('purchase_plan','pp-from','pp-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="pp-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>สถานะ</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="pp-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadPurchaseTable();
 }
@@ -616,9 +657,7 @@ async function savePurchasePlan(){
   const supplierId = document.getElementById('pp-supplier').value;
   const trailers = parseFloat(document.getElementById('pp-trailers').value || 0);
   const res = await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_trailers: trailers });
-  document.getElementById('pp-result').innerHTML = res.is_over_limit
-    ? `<span class="badge-over">⚠️ เกิน 3 พ่วง/วัน — บันทึกแล้ว (${fmt(res.planned_kg)} กก.)</span>`
-    : `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.planned_kg)} กก.</span>`;
+  document.getElementById('pp-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.planned_kg)} กก.</span>`;
   loadPurchaseTable();
 }
 function previewPurchasePaste(){
@@ -654,9 +693,9 @@ async function loadPurchaseTable(){
   const rows = await rpc('get_purchase_plan', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
   document.querySelector('#pp-table tbody').innerHTML = (rows||[]).map(r=>`
     <tr><td>${r.plan_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.planned_trailers)}</td>
-    <td>${fmt(r.planned_kg)}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td>
+    <td>${fmt(r.planned_kg)}</td>
     <td><button class="row-del" onclick="deleteRow('purchase_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
-    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
+    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
@@ -671,8 +710,9 @@ async function renderReceipt(){
       <div class="toolbar">
         <div class="field"><label>วันที่</label><input type="date" id="wr-date" value="${todayISO()}"></div>
         <div class="field"><label>ซัพพลายเออร์</label><select id="wr-supplier">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
-        <div class="field"><label>จำนวน (พ่วง ถ้า&lt;50 / กก. ถ้า≥50)</label><input type="number" id="wr-trailers"></div>
+        <div class="field"><label>น้ำหนัก (กก.)</label><input type="number" id="wr-kg"></div>
         <div class="field"><label>เลขที่ใบรับ</label><input type="text" id="wr-receiptno"></div>
+        <div class="field"><label>หมายเหตุ</label><input type="text" id="wr-remark"></div>
         <button class="btn btn-primary" onclick="saveWoodReceipt()">บันทึก</button>
       </div>
       <div id="wr-result" class="hint"></div>
@@ -680,8 +720,8 @@ async function renderReceipt(){
       <div class="paste-zone hide" id="wr-paste-zone">
         <label>ซัพพลายเออร์สำหรับนำเข้า</label>
         <select id="wr-paste-supplier" style="margin-bottom:8px;background:var(--navy-2);border:1px solid var(--line);color:var(--ink);padding:6px 8px;border-radius:5px;">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
-        <label>วันที่ [Tab] น้ำหนักจริง กก. [Tab] เลขใบชั่ง (ไม่บังคับ)</label>
-        <textarea id="wr-paste" rows="5" placeholder="เช่น&#10;26/4/2026&#9;27300&#9;WB-1029"></textarea>
+        <label>วันที่ [Tab] น้ำหนัก กก. [Tab] เลขใบชั่ง (ไม่บังคับ) [Tab] หมายเหตุ (ไม่บังคับ)</label>
+        <textarea id="wr-paste" rows="5" placeholder="เช่น&#10;26/4/2026&#9;27300&#9;WB-1029&#9;ชื้นเกินสเปค"></textarea>
         <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewReceiptPaste()">ดูตัวอย่าง</button>
       </div>
       <div id="wr-preview"></div>
@@ -693,28 +733,27 @@ async function renderReceipt(){
         <button class="btn btn-secondary" onclick="loadReceiptTable()">ค้นหา</button>
         <button class="btn btn-danger" onclick="deleteRange('wood_receipt','wr-from','wr-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>เลขที่</th><th>สถานะ</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>กก.</th><th>เลขที่</th><th>หมายเหตุ</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadReceiptTable();
 }
 async function saveWoodReceipt(){
   const date = document.getElementById('wr-date').value;
   const supplierId = document.getElementById('wr-supplier').value;
-  const trailers = parseFloat(document.getElementById('wr-trailers').value || 0);
+  const kg = parseFloat(document.getElementById('wr-kg').value || 0);
   const receiptNo = document.getElementById('wr-receiptno').value;
-  const res = await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_trailers: trailers, p_receipt_no: receiptNo });
-  document.getElementById('wr-result').innerHTML = res.is_over_limit
-    ? `<span class="badge-over">⚠️ เกิน 3 พ่วง/วัน — บันทึกแล้ว (${fmt(res.actual_kg)} กก.)</span>`
-    : `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.actual_kg)} กก.</span>`;
+  const remark = document.getElementById('wr-remark').value;
+  const res = await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_actual_kg: kg, p_receipt_no: receiptNo, p_remark: remark });
+  document.getElementById('wr-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.actual_kg)} กก.</span>`;
   loadReceiptTable();
 }
 function previewReceiptPaste(){
   document.getElementById('wr-result').innerHTML='';
-  const rows = parsePastedSheet(document.getElementById('wr-paste').value, 3);
+  const rows = parsePastedSheet(document.getElementById('wr-paste').value, 4);
   const box = document.getElementById('wr-preview');
   if(!rows.length){ box.innerHTML='<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์</div>'; return; }
-  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>กก.</th><th>เลขที่</th></tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="wrp-${i}" value="${r.value}"></td><td><input type="text" id="wrpn-${i}" value="${r.extra||''}"></td></tr>`).join('')}</tbody></table>
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>กก.</th><th>เลขที่</th><th>หมายเหตุ</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="wrp-${i}" value="${r.value}"></td><td><input type="text" id="wrpn-${i}" value="${r.extra||''}"></td><td><input type="text" id="wrpr-${i}" value="${r.extra2||''}"></td></tr>`).join('')}</tbody></table>
     <button class="btn btn-primary btn-sm" id="wr-import-btn" style="margin-top:10px;" onclick="confirmReceiptImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
     <div id="wr-import-status" class="hint"></div></div>`;
   window._wrPasteRows = rows;
@@ -729,7 +768,8 @@ async function confirmReceiptImport(n){
     status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
     const val = parseFloat(document.getElementById('wrp-'+i).value || 0);
     const rn = document.getElementById('wrpn-'+i).value;
-    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_trailers: val, p_receipt_no: rn }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
+    const rm = document.getElementById('wrpr-'+i).value;
+    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_actual_kg: val, p_receipt_no: rn, p_remark: rm }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
   }
   document.getElementById('wr-preview').innerHTML = ok===n
     ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
@@ -741,10 +781,10 @@ async function loadReceiptTable(){
   const from = document.getElementById('wr-from').value, to = document.getElementById('wr-to').value;
   const rows = await rpc('get_wood_receipt', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
   document.querySelector('#wr-table tbody').innerHTML = (rows||[]).map(r=>`
-    <tr><td>${r.receipt_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.trailers)}</td>
-    <td>${fmt(r.actual_kg)}</td><td>${r.receipt_no||''}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td>
+    <tr><td>${r.receipt_date}</td><td>${r.supplier_name||''}</td>
+    <td>${fmt(r.actual_kg)}</td><td>${r.receipt_no||''}</td><td>${r.remark||''}</td>
     <td><button class="row-del" onclick="deleteRow('wood_receipt','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
-    || '<tr><td colspan="7">ไม่มีข้อมูล</td></tr>';
+    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
