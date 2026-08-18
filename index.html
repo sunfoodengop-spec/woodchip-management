@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบบริหารจัดการไม้สับ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root{
+  --navy:#0d1b2a; --navy-2:#132a40; --navy-3:#1b3a56;
+  --amber:#f59e0b; --green:#10b981; --red:#ef4444; --warn:#f97316;
+  --ink:#e8edf3; --ink-dim:#93a3b8; --line:#26405c;
+  --font-head:'Barlow Condensed',sans-serif; --font-body:'Barlow',sans-serif; --font-mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--navy);color:var(--ink);font-family:var(--font-body);min-height:100vh;}
+h1,h2,h3,.headfont{font-family:var(--font-head);font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
+.mono{font-family:var(--font-mono);}
+a{color:inherit;}
+button{font-family:var(--font-body);cursor:pointer;}
+input,select,textarea{font-family:var(--font-body);}
+
+/* ---------- Login ---------- */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:
+  radial-gradient(circle at 20% 20%, rgba(245,158,11,.08), transparent 40%),
+  radial-gradient(circle at 80% 80%, rgba(16,185,129,.08), transparent 40%), var(--navy);}
+.login-box{width:360px;background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:32px;}
+.login-box h1{font-size:26px;margin:0 0 4px;color:var(--amber);}
+.login-box .sub{color:var(--ink-dim);font-size:13px;margin-bottom:24px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
+.field input,.field select{width:100%;padding:10px 12px;background:var(--navy);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:14px;}
+.field input:focus,.field select:focus{outline:none;border-color:var(--amber);}
+.btn{padding:10px 18px;border-radius:6px;border:none;font-weight:600;font-size:14px;}
+.btn-primary{background:var(--amber);color:var(--navy);width:100%;}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-secondary{background:transparent;border:1px solid var(--line);color:var(--ink);}
+.btn-danger{background:var(--red);color:#fff;}
+.err-msg{background:rgba(239,68,68,.12);border:1px solid var(--red);color:#fca5a5;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:14px;}
+.ok-msg{background:rgba(16,185,129,.12);border:1px solid var(--green);color:#6ee7b7;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:14px;}
+
+/* ---------- App shell ---------- */
+#app-shell{display:none;min-height:100vh;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr;}
+#app-shell.active{display:grid;}
+#topbar{grid-column:1/3;background:var(--navy-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;}
+#topbar .brand{font-family:var(--font-head);font-weight:700;color:var(--amber);letter-spacing:.05em;}
+#topbar .user-info{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--ink-dim);}
+#topbar .role-badge{background:var(--navy-3);color:var(--amber);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:.05em;}
+#sidebar{background:var(--navy-2);border-right:1px solid var(--line);padding:14px 0;overflow-y:auto;}
+#sidebar a{display:block;padding:11px 20px;font-size:14px;color:var(--ink-dim);text-decoration:none;border-left:3px solid transparent;}
+#sidebar a:hover{color:var(--ink);background:rgba(255,255,255,.03);}
+#sidebar a.active{color:var(--amber);border-left-color:var(--amber);background:rgba(245,158,11,.06);}
+#content{padding:24px;overflow-y:auto;}
+.page-title{font-size:22px;margin:0 0 20px;color:var(--ink);}
+
+/* ---------- Cards / tables ---------- */
+.grid{display:grid;gap:16px;}
+.grid-4{grid-template-columns:repeat(4,1fr);}
+.grid-2{grid-template-columns:1fr 1fr;}
+.card{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:18px;}
+.stat-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin-bottom:8px;}
+.stat-card .value{font-family:var(--font-mono);font-size:26px;font-weight:700;}
+.stat-card .value.amber{color:var(--amber);}
+.stat-card .value.green{color:var(--green);}
+.stat-card .value.red{color:var(--red);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);}
+td{padding:9px 10px;border-bottom:1px solid rgba(38,64,92,.5);font-family:var(--font-mono);}
+tr:hover td{background:rgba(255,255,255,.02);}
+.badge-over{color:var(--warn);font-weight:700;}
+.tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);}
+.tab{padding:8px 16px;font-size:13px;color:var(--ink-dim);border-bottom:2px solid transparent;cursor:pointer;}
+.tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:16px;}
+.toolbar .field{margin-bottom:0;min-width:140px;}
+.section-gap{margin-top:24px;}
+.hint{font-size:12px;color:var(--ink-dim);margin-top:6px;}
+.chart-wrap{position:relative;height:260px;}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>ไม้สับ</h1>
+    <div class="sub">ระบบบริหารจัดการคลังไม้สับ</div>
+    <div id="login-msg"></div>
+
+    <div id="login-form">
+      <div class="field"><label>Username</label><input id="li-username" autocomplete="username"></div>
+      <div class="field"><label>Password</label><input id="li-password" type="password" autocomplete="current-password"></div>
+      <button class="btn btn-primary" onclick="doLogin()">เข้าสู่ระบบ</button>
+    </div>
+
+    <div id="reset-form" style="display:none;">
+      <div class="sub" style="margin-top:-14px;">เข้าสู่ระบบครั้งแรก กรุณาตั้งรหัสผ่านใหม่</div>
+      <div class="field"><label>รหัสผ่านใหม่</label><input id="rs-new1" type="password"></div>
+      <div class="field"><label>ยืนยันรหัสผ่านใหม่</label><input id="rs-new2" type="password"></div>
+      <button class="btn btn-primary" onclick="doSetPassword()">ตั้งรหัสผ่านและเข้าสู่ระบบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app-shell">
+  <div id="topbar">
+    <div class="brand">🪵 WOODCHIP CONTROL</div>
+    <div class="user-info">
+      <span id="tb-username"></span>
+      <span class="role-badge" id="tb-role"></span>
+      <button class="btn btn-secondary" onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+  </div>
+  <div id="sidebar"></div>
+  <div id="content"></div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG
+============================================================ */
+const SUPABASE_URL = 'https://kkxhbglyojqcthrboeez.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGhiZ2x5b2pxY3RocmJvZWV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNTUzMzAsImV4cCI6MjEwMjYzMTMzMH0.WEg1gDMAe9NQE-jYVWS_Kblb-sBBqylzhu40IuyCOWY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ============================================================
+   STATE / SESSION
+============================================================ */
+let SESSION = JSON.parse(localStorage.getItem('wc_session') || 'null');
+let PENDING_USERNAME = null;
+
+function saveSession(s){ SESSION = s; localStorage.setItem('wc_session', JSON.stringify(s)); }
+function clearSession(){ SESSION = null; localStorage.removeItem('wc_session'); }
+
+async function sha256(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* Wrapper around supabase.rpc: on INVALID_SESSION, force logout */
+async function rpc(fn, params={}){
+  const { data, error } = await sb.rpc(fn, params);
+  if(error){
+    if(error.message && error.message.includes('INVALID_SESSION')){
+      clearSession(); showLogin(); throw error;
+    }
+    throw error;
+  }
+  return data;
+}
+
+/* ============================================================
+   LOGIN / AUTH FLOW
+============================================================ */
+async function doLogin(){
+  const msg = document.getElementById('login-msg'); msg.innerHTML='';
+  const username = document.getElementById('li-username').value.trim();
+  const password = document.getElementById('li-password').value;
+  if(!username || !password) return;
+  try{
+    const hash = await sha256(password);
+    const res = await rpc('login', { p_username: username, p_password_hash: hash });
+    if(res.first_login){
+      PENDING_USERNAME = username;
+      window._pendingOldHash = hash;
+      document.getElementById('login-form').style.display='none';
+      document.getElementById('reset-form').style.display='block';
+      return;
+    }
+    saveSession(res);
+    enterApp();
+  }catch(e){
+    msg.innerHTML = `<div class="err-msg">เข้าสู่ระบบไม่สำเร็จ: ${e.message.includes('INVALID_CREDENTIALS')?'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง':e.message}</div>`;
+  }
+}
+
+async function doSetPassword(){
+  const msg = document.getElementById('login-msg'); msg.innerHTML='';
+  const p1 = document.getElementById('rs-new1').value;
+  const p2 = document.getElementById('rs-new2').value;
+  if(p1.length < 6){ msg.innerHTML='<div class="err-msg">รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร</div>'; return; }
+  if(p1 !== p2){ msg.innerHTML='<div class="err-msg">รหัสผ่านไม่ตรงกัน</div>'; return; }
+  try{
+    const newHash = await sha256(p1);
+    await rpc('set_password', { p_username: PENDING_USERNAME, p_old_hash: window._pendingOldHash, p_new_hash: newHash });
+    const res = await rpc('login', { p_username: PENDING_USERNAME, p_password_hash: newHash });
+    saveSession(res);
+    enterApp();
+  }catch(e){
+    msg.innerHTML = `<div class="err-msg">เกิดข้อผิดพลาด: ${e.message}</div>`;
+  }
+}
+
+function doLogout(){
+  if(SESSION) rpc('logout', { p_token: SESSION.token }).catch(()=>{});
+  clearSession();
+  location.hash = '';
+  showLogin();
+}
+
+function showLogin(){
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app-shell').classList.remove('active');
+  document.getElementById('login-form').style.display='block';
+  document.getElementById('reset-form').style.display='none';
+  document.getElementById('login-msg').innerHTML='';
+}
+
+function enterApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-shell').classList.add('active');
+  document.getElementById('tb-username').textContent = SESSION.username;
+  document.getElementById('tb-role').textContent = SESSION.role;
+  buildSidebar();
+  router();
+}
+
+/* ============================================================
+   NAV / ROUTER
+============================================================ */
+const NAV = [
+  {hash:'#dashboard', label:'ภาพรวม', roles:['ENG','PUR','STO','PRD','ADMIN']},
+  {hash:'#inventory', label:'สต็อกคลัง', roles:['ENG','PUR','STO','PRD','ADMIN']},
+  {hash:'#chicken', label:'แผนไก่ / ขนไก่', roles:['ENG','ADMIN']},
+  {hash:'#purchase', label:'แผนสั่งซื้อ', roles:['PUR','ENG','ADMIN']},
+  {hash:'#receipt', label:'บันทึกรับไม้', roles:['STO','ENG','ADMIN']},
+  {hash:'#steam', label:'บันทึกไอน้ำ', roles:['PRD','ENG','ADMIN']},
+  {hash:'#supplier', label:'กำหนดส่งของฉัน', roles:['SUP']},
+  {hash:'#reports', label:'รายงาน', roles:['ENG','PUR','ADMIN']},
+  {hash:'#settings', label:'ตั้งค่าระบบ', roles:['ENG','ADMIN']},
+];
+
+function buildSidebar(){
+  const el = document.getElementById('sidebar');
+  el.innerHTML = NAV.filter(n=>n.roles.includes(SESSION.role))
+    .map(n=>`<a href="${n.hash}" data-hash="${n.hash}">${n.label}</a>`).join('');
+}
+
+window.addEventListener('hashchange', router);
+
+function router(){
+  if(!SESSION){ showLogin(); return; }
+  let h = location.hash || defaultHashFor(SESSION.role);
+  const allowed = NAV.find(n=>n.hash===h && n.roles.includes(SESSION.role));
+  if(!allowed){ h = defaultHashFor(SESSION.role); location.hash = h; }
+  document.querySelectorAll('#sidebar a').forEach(a=>a.classList.toggle('active', a.getAttribute('data-hash')===h));
+  const page = h.replace('#','');
+  const renderFn = { dashboard:renderDashboard, inventory:renderInventory, chicken:renderChicken,
+    purchase:renderPurchase, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
+    reports:renderReports, settings:renderSettings }[page];
+  document.getElementById('content').innerHTML = '<div class="hint">กำลังโหลด...</div>';
+  if(renderFn) renderFn();
+}
+
+function defaultHashFor(role){
+  if(role==='SUP') return '#supplier';
+  return '#dashboard';
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function fmt(n){ return n==null ? '-' : Number(n).toLocaleString('th-TH',{maximumFractionDigits:0}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function daysAgoISO(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+
+function parsePastedSheet(text){
+  // รองรับ: วันที่ [Tab/comma] ค่า  — ข้าม header อัตโนมัติ
+  const rows = [];
+  text.split('\n').forEach(line=>{
+    line = line.trim(); if(!line) return;
+    const parts = line.split(/\t|,/).map(s=>s.trim());
+    if(parts.length < 2) return;
+    const dateStr = parts[0], valStr = parts[1].replace(/,/g,'');
+    const d = parseFlexDate(dateStr);
+    const v = parseFloat(valStr);
+    if(d && !isNaN(v)) rows.push({date:d, value:v});
+  });
+  return rows;
+}
+function parseFlexDate(s){
+  s = s.trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // d/m/yyyy
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); // yyyy-mm-dd
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return null;
+}
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+async function renderDashboard(){
+  const from = daysAgoISO(13), to = todayISO();
+  const data = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  const inv = data.inventory || [];
+  const latest = inv.length ? inv[inv.length-1] : null;
+  const todayReceived = (inv.find(i=>i.inv_date===to)||{}).received_kg || 0;
+  const todayUsed = (inv.find(i=>i.inv_date===to)||{}).used_kg || 0;
+  const stock = latest ? latest.closing_stock_kg : 0;
+
+  const html = `
+    <h2 class="page-title">ภาพรวม</h2>
+    <div class="grid grid-4">
+      <div class="card stat-card"><div class="label">สต็อกคงเหลือล่าสุด</div><div class="value amber">${fmt(stock)} <span style="font-size:14px;">กก.</span></div></div>
+      <div class="card stat-card"><div class="label">รับไม้วันนี้</div><div class="value green">${fmt(todayReceived)} กก.</div></div>
+      <div class="card stat-card"><div class="label">ใช้ไม้วันนี้ (คำนวณ)</div><div class="value">${fmt(todayUsed)} กก.</div></div>
+      <div class="card stat-card"><div class="label">ความจุคลังสูงสุด</div><div class="value">400,000 กก.</div></div>
+    </div>
+    <div class="card section-gap">
+      <h3 style="margin-top:0;">แนวโน้มสต็อก 14 วันล่าสุด</h3>
+      <div class="chart-wrap"><canvas id="stockChart"></canvas></div>
+    </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  const ctx = document.getElementById('stockChart');
+  new Chart(ctx, {
+    type:'line',
+    data:{ labels: inv.map(i=>i.inv_date), datasets:[{
+      label:'สต็อกคงเหลือ (กก.)', data: inv.map(i=>i.closing_stock_kg),
+      borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.15)', fill:true, tension:.3 }]},
+    options:{ scales:{ x:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}}, y:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}} },
+      plugins:{legend:{labels:{color:'#e8edf3'}}} }
+  });
+}
+
+/* ============================================================
+   INVENTORY
+============================================================ */
+async function renderInventory(){
+  const from = daysAgoISO(29), to = todayISO();
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">สต็อกคลัง</h2>
+    <div class="toolbar">
+      <div class="field"><label>จากวันที่</label><input type="date" id="inv-from" value="${from}"></div>
+      <div class="field"><label>ถึงวันที่</label><input type="date" id="inv-to" value="${to}"></div>
+      <button class="btn btn-primary" onclick="loadInventoryTable()">ค้นหา</button>
+    </div>
+    <div class="card"><table id="inv-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับเข้า</th><th>ใช้ไป</th><th>คงเหลือ</th></tr></thead><tbody></tbody></table></div>`;
+  loadInventoryTable();
+}
+async function loadInventoryTable(){
+  const from = document.getElementById('inv-from').value, to = document.getElementById('inv-to').value;
+  const rows = await rpc('get_inventory', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#inv-table tbody').innerHTML = (rows||[]).map(r=>`
+    <tr><td>${r.inv_date}</td><td>${fmt(r.opening_stock_kg)}</td><td>${fmt(r.received_kg)}</td>
+    <td>${fmt(r.used_kg)}</td><td style="color:var(--amber);font-weight:700;">${fmt(r.closing_stock_kg)}</td></tr>`).join('')
+    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+}
+
+/* ============================================================
+   CHICKEN PLAN
+============================================================ */
+async function renderChicken(){
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">แผนไก่ / ขนไก่</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 style="margin-top:0;">บันทึกรายวัน</h3>
+        <div class="field"><label>วันที่</label><input type="date" id="ck-date" value="${todayISO()}"></div>
+        <div class="field"><label>น้ำหนักไก่ (กก.)</label><input type="number" id="ck-chicken"></div>
+        <div class="field"><label>ขนไก่ที่ซื้อมา (กก.)</label><input type="number" id="ck-feathers" value="0"></div>
+        <button class="btn btn-primary" onclick="saveChickenPlan()">บันทึก</button>
+        <div id="ck-result" class="hint"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">วางจาก Google Sheets (น้ำหนักไก่)</h3>
+        <div class="hint">รูปแบบ: วันที่ [Tab] น้ำหนักไก่ — ข้าม header อัตโนมัติ</div>
+        <textarea id="ck-paste" rows="6" style="width:100%;margin-top:8px;background:var(--navy);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:8px;"></textarea>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="pasteChickenPlan()">นำเข้า</button>
+        <div id="ck-paste-result" class="hint"></div>
+      </div>
+    </div>
+    <div class="card section-gap">
+      <div class="toolbar">
+        <div class="field"><label>จากวันที่</label><input type="date" id="ck-from" value="${daysAgoISO(29)}"></div>
+        <div class="field"><label>ถึงวันที่</label><input type="date" id="ck-to" value="${todayISO()}"></div>
+        <button class="btn btn-secondary" onclick="loadChickenTable()">ค้นหา</button>
+        <button class="btn btn-danger" onclick="deleteRange('chicken_plan','ck-from','ck-to')">ลบข้อมูลในช่วงนี้</button>
+      </div>
+      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ไม้สับที่คำนวณได้ (กก.)</th><th>บันทึกโดย</th></tr></thead><tbody></tbody></table>
+    </div>`;
+  loadChickenTable();
+}
+async function saveChickenPlan(){
+  const date = document.getElementById('ck-date').value;
+  const chicken = parseFloat(document.getElementById('ck-chicken').value || 0);
+  const feathers = parseFloat(document.getElementById('ck-feathers').value || 0);
+  const res = await rpc('save_chicken_plan', { p_token: SESSION.token, p_date: date, p_chicken_kg: chicken, p_feathers_kg: feathers });
+  document.getElementById('ck-result').innerHTML = `<span style="color:var(--green);">คำนวณไม้สับได้ ${fmt(res.calc_wood_kg)} กก.</span>`;
+  loadChickenTable();
+}
+async function pasteChickenPlan(){
+  const rows = parsePastedSheet(document.getElementById('ck-paste').value);
+  let ok=0;
+  for(const r of rows){
+    try{ await rpc('save_chicken_plan', { p_token: SESSION.token, p_date: r.date, p_chicken_kg: r.value, p_feathers_kg: 0 }); ok++; }catch(e){}
+  }
+  document.getElementById('ck-paste-result').textContent = `นำเข้าสำเร็จ ${ok}/${rows.length} แถว`;
+  loadChickenTable();
+}
+async function loadChickenTable(){
+  const from = document.getElementById('ck-from').value, to = document.getElementById('ck-to').value;
+  const rows = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>`
+    <tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
+    <td style="color:var(--amber);">${fmt(r.calc_wood_kg)}</td><td>${r.recorded_by||''}</td></tr>`).join('')
+    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+}
+
+/* ============================================================
+   PURCHASE PLAN
+============================================================ */
+let SUPPLIERS_CACHE = null;
+async function loadSuppliers(){
+  if(SUPPLIERS_CACHE) return SUPPLIERS_CACHE;
+  SUPPLIERS_CACHE = await rpc('get_suppliers', { p_token: SESSION.token });
+  return SUPPLIERS_CACHE;
+}
+
+async function renderPurchase(){
+  const suppliers = await loadSuppliers();
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">แผนสั่งซื้อ</h2>
+    <div class="card">
+      <h3 style="margin-top:0;">บันทึกแผนสั่งซื้อ</h3>
+      <div class="toolbar">
+        <div class="field"><label>วันที่</label><input type="date" id="pp-date" value="${todayISO()}"></div>
+        <div class="field"><label>ซัพพลายเออร์</label><select id="pp-supplier">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+        <div class="field"><label>จำนวน (พ่วง ถ้า&lt;50 / กก. ถ้า≥50)</label><input type="number" id="pp-trailers"></div>
+        <button class="btn btn-primary" onclick="savePurchasePlan()">บันทึก</button>
+      </div>
+      <div id="pp-result" class="hint"></div>
+    </div>
+    <div class="card section-gap">
+      <div class="toolbar">
+        <div class="field"><label>จากวันที่</label><input type="date" id="pp-from" value="${daysAgoISO(29)}"></div>
+        <div class="field"><label>ถึงวันที่</label><input type="date" id="pp-to" value="${todayISO()}"></div>
+        <button class="btn btn-secondary" onclick="loadPurchaseTable()">ค้นหา</button>
+        <button class="btn btn-danger" onclick="deleteRange('purchase_plan','pp-from','pp-to')">ลบข้อมูลในช่วงนี้</button>
+      </div>
+      <table id="pp-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>สถานะ</th></tr></thead><tbody></tbody></table>
+    </div>`;
+  loadPurchaseTable();
+}
+async function savePurchasePlan(){
+  const date = document.getElementById('pp-date').value;
+  const supplierId = document.getElementById('pp-supplier').value;
+  const trailers = parseFloat(document.getElementById('pp-trailers').value || 0);
+  const res = await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_trailers: trailers });
+  document.getElementById('pp-result').innerHTML = res.is_over_limit
+    ? `<span class="badge-over">⚠️ เกิน 3 พ่วง/วัน — บันทึกแล้ว (${fmt(res.planned_kg)} กก.)</span>`
+    : `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.planned_kg)} กก.</span>`;
+  loadPurchaseTable();
+}
+async function loadPurchaseTable(){
+  const from = document.getElementById('pp-from').value, to = document.getElementById('pp-to').value;
+  const rows = await rpc('get_purchase_plan', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#pp-table tbody').innerHTML = (rows||[]).map(r=>`
+    <tr><td>${r.plan_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.planned_trailers)}</td>
+    <td>${fmt(r.planned_kg)}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td></tr>`).join('')
+    || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+}
+
+/* ============================================================
+   WOOD RECEIPT
+============================================================ */
+async function renderReceipt(){
+  const suppliers = await loadSuppliers();
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">บันทึกรับไม้จริง</h2>
+    <div class="card">
+      <h3 style="margin-top:0;">บันทึกการรับไม้</h3>
+      <div class="toolbar">
+        <div class="field"><label>วันที่</label><input type="date" id="wr-date" value="${todayISO()}"></div>
+        <div class="field"><label>ซัพพลายเออร์</label><select id="wr-supplier">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+        <div class="field"><label>จำนวน (พ่วง ถ้า&lt;50 / กก. ถ้า≥50)</label><input type="number" id="wr-trailers"></div>
+        <div class="field"><label>เลขที่ใบรับ</label><input type="text" id="wr-receiptno"></div>
+        <button class="btn btn-primary" onclick="saveWoodReceipt()">บันทึก</button>
+      </div>
+      <div id="wr-result" class="hint"></div>
+    </div>
+    <div class="card section-gap">
+      <div class="toolbar">
+        <div class="field"><label>จากวันที่</label><input type="date" id="wr-from" value="${daysAgoISO(29)}"></div>
+        <div class="field"><label>ถึงวันที่</label><input type="date" id="wr-to" value="${todayISO()}"></div>
+        <button class="btn btn-secondary" onclick="loadReceiptTable()">ค้นหา</button>
+        <button class="btn btn-danger" onclick="deleteRange('wood_receipt','wr-from','wr-to')">ลบข้อมูลในช่วงนี้</button>
+      </div>
+      <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th>เลขที่</th><th>สถานะ</th></tr></thead><tbody></tbody></table>
+    </div>`;
+  loadReceiptTable();
+}
+async function saveWoodReceipt(){
+  const date = document.getElementById('wr-date').value;
+  const supplierId = document.getElementById('wr-supplier').value;
+  const trailers = parseFloat(document.getElementById('wr-trailers').value || 0);
+  const receiptNo = document.getElementById('wr-receiptno').value;
+  const res = await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_trailers: trailers, p_receipt_no: receiptNo });
+  document.getElementById('wr-result').innerHTML = res.is_over_limit
+    ? `<span class="badge-over">⚠️ เกิน 3 พ่วง/วัน — บันทึกแล้ว (${fmt(res.actual_kg)} กก.)</span>`
+    : `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.actual_kg)} กก.</span>`;
+  loadReceiptTable();
+}
+async function loadReceiptTable(){
+  const from = document.getElementById('wr-from').value, to = document.getElementById('wr-to').value;
+  const rows = await rpc('get_wood_receipt', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#wr-table tbody').innerHTML = (rows||[]).map(r=>`
+    <tr><td>${r.receipt_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.trailers)}</td>
+    <td>${fmt(r.actual_kg)}</td><td>${r.receipt_no||''}</td><td>${r.is_over_limit?'<span class="badge-over">เกินกำหนด</span>':'ปกติ'}</td></tr>`).join('')
+    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
+}
+
+/* ============================================================
+   STEAM USAGE
+============================================================ */
+async function renderSteam(){
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">บันทึกไอน้ำรายวัน</h2>
+    <div class="card">
+      <div class="toolbar">
+        <div class="field"><label>วันที่</label><input type="date" id="st-date" value="${todayISO()}"></div>
+        <div class="field"><label>ปริมาณไอน้ำ (กก.)</label><input type="number" id="st-kg"></div>
+        <button class="btn btn-primary" onclick="saveSteam()">บันทึก</button>
+      </div>
+      <div id="st-result" class="hint"></div>
+    </div>
+    <div class="card section-gap">
+      <div class="toolbar">
+        <div class="field"><label>จากวันที่</label><input type="date" id="st-from" value="${daysAgoISO(29)}"></div>
+        <div class="field"><label>ถึงวันที่</label><input type="date" id="st-to" value="${todayISO()}"></div>
+        <button class="btn btn-secondary" onclick="loadSteamTable()">ค้นหา</button>
+        <button class="btn btn-danger" onclick="deleteRange('steam_usage','st-from','st-to')">ลบข้อมูลในช่วงนี้</button>
+      </div>
+      <table id="st-table"><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th><th>บันทึกโดย</th></tr></thead><tbody></tbody></table>
+    </div>`;
+  loadSteamTable();
+}
+async function saveSteam(){
+  const date = document.getElementById('st-date').value;
+  const kg = parseFloat(document.getElementById('st-kg').value || 0);
+  await rpc('save_steam_usage', { p_token: SESSION.token, p_date: date, p_steam_kg: kg });
+  document.getElementById('st-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว</span>`;
+  loadSteamTable();
+}
+async function loadSteamTable(){
+  const from = document.getElementById('st-from').value, to = document.getElementById('st-to').value;
+  const rows = await rpc('get_steam_usage', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#st-table tbody').innerHTML = (rows||[]).map(r=>`
+    <tr><td>${r.usage_date}</td><td>${fmt(r.steam_kg)}</td><td>${r.recorded_by||''}</td></tr>`).join('')
+    || '<tr><td colspan="3">ไม่มีข้อมูล</td></tr>';
+}
+
+/* ============================================================
+   SUPPLIER VIEW (own schedule only)
+============================================================ */
+async function renderSupplierView(){
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">กำหนดส่งของฉัน</h2>
+    <div class="card">
+      <div class="toolbar">
+        <div class="field"><label>จากวันที่</label><input type="date" id="sv-from" value="${todayISO()}"></div>
+        <div class="field"><label>ถึงวันที่</label><input type="date" id="sv-to" value="${daysAgoISO(-13)}"></div>
+        <button class="btn btn-secondary" onclick="loadSupplierSchedule()">ค้นหา</button>
+      </div>
+      <table id="sv-table"><thead><tr><th>วันที่</th><th>พ่วง</th><th>กก.</th></tr></thead><tbody></tbody></table>
+    </div>`;
+  loadSupplierSchedule();
+}
+async function loadSupplierSchedule(){
+  const from = document.getElementById('sv-from').value, to = document.getElementById('sv-to').value;
+  const rows = await rpc('get_my_supplier_schedule', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#sv-table tbody').innerHTML = (rows||[]).map(r=>`
+    <tr><td>${r.plan_date}</td><td>${fmt(r.planned_trailers)}</td><td>${fmt(r.planned_kg)}</td></tr>`).join('')
+    || '<tr><td colspan="3">ไม่มีกำหนดส่งในช่วงนี้</td></tr>';
+}
+
+/* ============================================================
+   REPORTS
+============================================================ */
+async function renderReports(){
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">รายงาน SEC</h2>
+    <div class="toolbar">
+      <div class="field"><label>จากวันที่</label><input type="date" id="rp-from" value="${daysAgoISO(6)}"></div>
+      <div class="field"><label>ถึงวันที่</label><input type="date" id="rp-to" value="${todayISO()}"></div>
+      <button class="btn btn-primary" onclick="loadReports()">สร้างรายงาน</button>
+    </div>
+    <div id="rp-body"></div>`;
+  loadReports();
+}
+async function loadReports(){
+  const from = document.getElementById('rp-from').value, to = document.getElementById('rp-to').value;
+  const r = await rpc('get_reports', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.getElementById('rp-body').innerHTML = `
+    <div class="grid grid-4">
+      <div class="card stat-card"><div class="label">ไก่รวม (กก.)</div><div class="value">${fmt(r.total_planned_chicken_kg)}</div></div>
+      <div class="card stat-card"><div class="label">ไม้สับที่ต้องใช้ (กก.)</div><div class="value amber">${fmt(r.total_calc_wood_kg)}</div></div>
+      <div class="card stat-card"><div class="label">ไม้สับที่รับจริง (กก.)</div><div class="value green">${fmt(r.total_received_kg)}</div></div>
+      <div class="card stat-card"><div class="label">ไอน้ำรวม (กก.)</div><div class="value">${fmt(r.total_steam_kg)}</div></div>
+    </div>
+    <div class="card section-gap">
+      <h3 style="margin-top:0;">แยกตามซัพพลายเออร์</h3>
+      <table><thead><tr><th>ซัพพลายเออร์</th><th>รวม (กก.)</th><th>จำนวนพ่วง</th></tr></thead>
+      <tbody>${(r.by_supplier||[]).map(s=>`<tr><td>${s.supplier_name||''}</td><td>${fmt(s.total_kg)}</td><td>${fmt(s.total_trailers)}</td></tr>`).join('') || '<tr><td colspan="3">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+    </div>`;
+}
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+async function renderSettings(){
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">ตั้งค่าระบบ</h2>
+    <div class="tabs">
+      <div class="tab active" data-t="formula" onclick="switchSettingsTab('formula')">สูตรคำนวณ</div>
+      <div class="tab" data-t="suppliers" onclick="switchSettingsTab('suppliers')">ซัพพลายเออร์</div>
+      ${SESSION.role==='ADMIN' ? '<div class="tab" data-t="users" onclick="switchSettingsTab(\'users\')">ผู้ใช้งาน</div>' : ''}
+    </div>
+    <div id="settings-body"></div>`;
+  switchSettingsTab('formula');
+}
+async function switchSettingsTab(t){
+  document.querySelectorAll('#content .tab').forEach(el=>el.classList.toggle('active', el.dataset.t===t));
+  const body = document.getElementById('settings-body');
+  if(t==='formula'){
+    const rows = await rpc('get_sys_config', { p_token: SESSION.token });
+    body.innerHTML = `<div class="card"><table><thead><tr><th>Key</th><th>ค่า</th><th>คำอธิบาย</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.key}</td><td><input type="text" value="${r.value}" id="cfg-${r.key}" style="width:140px;background:var(--navy);border:1px solid var(--line);color:var(--ink);padding:4px 8px;border-radius:4px;"></td>
+      <td style="font-family:var(--font-body);">${r.description||''}</td><td><button class="btn btn-secondary" onclick="saveConfig('${r.key}')">บันทึก</button></td></tr>`).join('')}</tbody></table></div>`;
+  } else if(t==='suppliers'){
+    const rows = await loadSuppliers();
+    body.innerHTML = `<div class="card">
+      <table><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th></tr></thead>
+      <tbody>${rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'-'}</td></tr>`).join('')}</tbody></table>
+      <h3>เพิ่มซัพพลายเออร์ใหม่</h3>
+      <div class="toolbar">
+        <div class="field"><label>ชื่อบริษัท</label><input id="ns-name"></div>
+        <div class="field"><label>ผู้ติดต่อ</label><input id="ns-contact"></div>
+        <div class="field"><label>โทรศัพท์</label><input id="ns-phone"></div>
+        <div class="field"><label>Username</label><input id="ns-username"></div>
+        <button class="btn btn-primary" onclick="addSupplier()">เพิ่ม</button>
+      </div></div>`;
+  } else if(t==='users'){
+    body.innerHTML = `<div class="card">
+      <h3 style="margin-top:0;">เพิ่มผู้ใช้งาน (รหัสผ่านตั้งต้น 123456789 บังคับเปลี่ยนตอน login ครั้งแรก)</h3>
+      <div class="toolbar">
+        <div class="field"><label>Username</label><input id="nu-username"></div>
+        <div class="field"><label>Role</label><select id="nu-role"><option>ENG</option><option>PUR</option><option>STO</option><option>PRD</option><option>ADMIN</option></select></div>
+        <div class="field"><label>แผนก</label><input id="nu-dept"></div>
+        <button class="btn btn-primary" onclick="addUser()">เพิ่มผู้ใช้</button>
+      </div>
+      <div class="section-gap">
+        <h3>รีเซ็ตรหัสผ่าน</h3>
+        <div class="toolbar">
+          <div class="field"><label>Username</label><input id="rp-username"></div>
+          <button class="btn btn-secondary" onclick="resetUserPw()">รีเซ็ตเป็น 123456789</button>
+        </div>
+      </div></div>`;
+  }
+}
+async function saveConfig(key){
+  const val = document.getElementById('cfg-'+key).value;
+  await rpc('update_sys_config', { p_token: SESSION.token, p_key: key, p_value: val });
+  switchSettingsTab('formula');
+}
+async function addSupplier(){
+  await rpc('manage_supplier', { p_token: SESSION.token, p_id: null,
+    p_name: document.getElementById('ns-name').value, p_contact_name: document.getElementById('ns-contact').value,
+    p_phone: document.getElementById('ns-phone').value, p_username: document.getElementById('ns-username').value });
+  SUPPLIERS_CACHE = null;
+  switchSettingsTab('suppliers');
+}
+async function addUser(){
+  await rpc('manage_user', { p_token: SESSION.token, p_id: null,
+    p_username: document.getElementById('nu-username').value, p_role: document.getElementById('nu-role').value,
+    p_department: document.getElementById('nu-dept').value, p_supplier_id: null });
+  alert('เพิ่มผู้ใช้แล้ว (รหัสผ่านตั้งต้น 123456789)');
+}
+async function resetUserPw(){
+  await rpc('reset_user_password', { p_token: SESSION.token, p_username: document.getElementById('rp-username').value });
+  alert('รีเซ็ตรหัสผ่านเป็น 123456789 แล้ว');
+}
+
+/* ============================================================
+   DELETE RANGE
+============================================================ */
+async function deleteRange(table, fromId, toId){
+  const from = document.getElementById(fromId).value, to = document.getElementById(toId).value;
+  if(!confirm(`ยืนยันลบข้อมูลตั้งแต่ ${from} ถึง ${to}? การกระทำนี้ไม่สามารถย้อนกลับได้`)) return;
+  const count = await rpc('delete_records', { p_token: SESSION.token, p_table: table, p_date_from: from, p_date_to: to });
+  alert(`ลบข้อมูล ${count} แถวเรียบร้อย`);
+  router();
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+(function init(){
+  if(SESSION && SESSION.token){ enterApp(); } else { showLogin(); }
+})();
+</script>
+</body>
+</html>
