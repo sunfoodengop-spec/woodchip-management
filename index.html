@@ -281,8 +281,8 @@ function enterApp(){
 const NAV = [
   {hash:'#dashboard', label:'ภาพรวม', icon:'📊', roles:['ENG','PUR','STO','PRD','ADMIN']},
   {hash:'#inventory', label:'สต็อกคลัง', icon:'🏭', roles:['ENG','PUR','STO','PRD','ADMIN']},
-  {hash:'#chicken', label:'แผนไก่ / ขนไก่', icon:'🐔', roles:['ENG','ADMIN']},
-  {hash:'#actualuse', label:'ใช้ไม้จริง', icon:'🔥', roles:['STO','ENG','ADMIN']},
+  {hash:'#chicken', label:'แผนไก่ / ขนไก่', icon:'🐔', roles:['ENG','ADMIN','PRD']},
+  {hash:'#actualuse', label:'ใช้ไม้จริง', icon:'🔥', roles:['PRD','ENG','ADMIN']},
   {hash:'#purchase', label:'แผนสั่งซื้อ', icon:'🛒', roles:['PUR','ENG','ADMIN']},
   {hash:'#reconcile', label:'เทียบแผน-รับจริง', icon:'⚖️', roles:['PUR','ENG','ADMIN']},
   {hash:'#receipt', label:'บันทึกรับไม้', icon:'📥', roles:['STO','ENG','ADMIN']},
@@ -574,14 +574,16 @@ async function loadStockAdjustments(){
    CHICKEN / FEATHERS  (2 Tab — ported from old system)
 ============================================================ */
 async function renderChicken(){
+  const isPRD = SESSION.role === 'PRD';
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">แผนไก่ / ขนไก่</h2>
     <div class="tabs">
-      <div class="tab active" data-t="chicken" onclick="switchChickenTab('chicken')">🐔 น้ำหนักไก่</div>
-      <div class="tab" data-t="feathers" onclick="switchChickenTab('feathers')">🪶 ขนไก่ที่ซื้อ</div>
+      ${isPRD ? '' : '<div class="tab active" data-t="chicken" onclick="switchChickenTab(\'chicken\')">🐔 น้ำหนักไก่</div>'}
+      <div class="tab${isPRD?' active':''}" data-t="feathers" onclick="switchChickenTab('feathers')">🪶 ขนไก่ที่ซื้อ</div>
     </div>
+    ${isPRD ? '<div class="hint" style="margin-bottom:14px;">บทบาท PRD บันทึกได้เฉพาะขนไก่ที่ซื้อ — น้ำหนักไก่บันทึกโดย ENG/ADMIN</div>' : ''}
     <div id="chicken-tab-body"></div>`;
-  switchChickenTab('chicken');
+  switchChickenTab(isPRD ? 'feathers' : 'chicken');
 }
 async function switchChickenTab(t){
   document.querySelectorAll('#content .tab').forEach(el=>el.classList.toggle('active', el.dataset.t===t));
@@ -610,7 +612,7 @@ async function switchChickenTab(t){
         <div class="field"><label>ถึงวันที่</label><input type="date" id="ck-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadChickenTable()">ค้นหา</button>
         <button class="btn btn-secondary" onclick="exportTableToExcel('ck-table','แผนไก่_ขนไก่')">📥 Export Excel</button>
-        <button class="btn btn-danger" onclick="deleteRange('chicken_plan','ck-from','ck-to')">ลบทั้งช่วง</button>
+        ${SESSION.role!=='PRD' ? '<button class="btn btn-danger" onclick="deleteRange(\'chicken_plan\',\'ck-from\',\'ck-to\')">ลบทั้งช่วง</button>' : ''}
       </div>
       <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ตัดสต็อกด้วย</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
@@ -668,7 +670,7 @@ async function loadChickenTable(){
     <td>${fmt(r.calc_wood_kg)}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
     <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
     <td>${r.recorded_by||''}</td>
-    <td><button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`;
+    <td>${SESSION.role!=='PRD'?`<button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button>`:''}</td></tr>`;
   }).join('') || '<tr><td colspan="8">ไม่มีข้อมูล</td></tr>';
 }
 
