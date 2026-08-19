@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --navy:#0d1b2a; --navy-2:#132a40; --navy-3:#1b3a56;
@@ -18,10 +19,22 @@
   --purp:#a78bfa; --purp-bg:rgba(167,139,250,.1);
   --warn:#f97316; --warn-bg:rgba(249,115,22,.1);
   --ink:#e8edf3; --ink-dim:#93a3b8; --ink-dim2:#5a7089; --line:#26405c;
+  --shadow: 0 1px 3px rgba(0,0,0,.4);
   --font-head:'Barlow Condensed',sans-serif; --font-body:'Barlow',sans-serif; --font-mono:'JetBrains Mono',monospace;
 }
+body.light-theme{
+  --navy:#eef1f5; --navy-2:#ffffff; --navy-3:#f3f5f8;
+  --amber:#b45309; --amber-h:#92400e; --amber-glow:rgba(180,83,9,.12);
+  --green:#047857; --green-bg:rgba(4,120,87,.08);
+  --red:#dc2626; --red-bg:rgba(220,38,38,.08);
+  --blue:#1d4ed8; --blue-bg:rgba(29,78,216,.08);
+  --purp:#7c3aed; --purp-bg:rgba(124,58,237,.08);
+  --warn:#c2410c; --warn-bg:rgba(194,65,12,.08);
+  --ink:#1a2332; --ink-dim:#5b6b7d; --ink-dim2:#8896a3; --line:#dde3ea;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
 *{box-sizing:border-box;}
-body{margin:0;background:var(--navy);color:var(--ink);font-family:var(--font-body);min-height:100vh;font-size:14px;}
+body{margin:0;background:var(--navy);color:var(--ink);font-family:var(--font-body);min-height:100vh;font-size:14px;transition:background .2s,color .2s;}
 h1,h2,h3,.headfont{font-family:var(--font-head);font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
 .mono{font-family:var(--font-mono);}
 a{color:inherit;}
@@ -80,7 +93,7 @@ input,select,textarea{font-family:var(--font-body);}
 .grid{display:grid;gap:16px;}
 .grid-4{grid-template-columns:repeat(4,1fr);}
 .grid-2{grid-template-columns:1fr 1fr;}
-.card{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:18px;}
+.card{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:var(--shadow);}
 .card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line);}
 .card-title{font-family:var(--font-head);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:0;}
 .stat{position:relative;overflow:hidden;}
@@ -157,6 +170,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
   <div id="topbar">
     <div class="brand">🪵 WOODCHIP CONTROL</div>
     <div class="user-info">
+      <button class="btn btn-secondary btn-sm" id="theme-toggle-btn" onclick="toggleTheme()" title="สลับโหมดสว่าง/มืด">🌙</button>
       <span id="tb-username" class="mono"></span>
       <span class="role-badge" id="tb-role"></span>
       <button class="btn btn-secondary btn-sm" onclick="doLogout()">ออกจากระบบ</button>
@@ -312,6 +326,31 @@ function defaultHashFor(role){ return role==='SUP' ? '#supplier' : '#dashboard';
 /* ============================================================
    HELPERS
 ============================================================ */
+/* ============================================================
+   THEME (light/dark)
+============================================================ */
+function applyTheme(t){
+  document.body.classList.toggle('light-theme', t==='light');
+  const btn = document.getElementById('theme-toggle-btn');
+  if(btn) btn.textContent = t==='light' ? '☀️' : '🌙';
+}
+function toggleTheme(){
+  const next = document.body.classList.contains('light-theme') ? 'dark' : 'light';
+  localStorage.setItem('wc_theme', next);
+  applyTheme(next);
+}
+applyTheme(localStorage.getItem('wc_theme') || 'dark');
+
+/* ============================================================
+   EXCEL EXPORT — ใช้ได้กับทุกตารางในระบบ
+============================================================ */
+function exportTableToExcel(tableId, filename){
+  const table = document.getElementById(tableId);
+  if(!table){ alert('ไม่พบตารางสำหรับ export'); return; }
+  const wb = XLSX.utils.table_to_book(table, { raw:false });
+  XLSX.writeFile(wb, `${filename}_${todayISO()}.xlsx`);
+}
+
 function fmt(n,d=0){ return n==null ? '-' : Number(n).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d}); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function daysAgoISO(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
@@ -435,7 +474,8 @@ async function renderDashboard(){
     <div class="card section-gap">
       <div class="card-hd"><h3 class="card-title">📅 พยากรณ์สต็อก 7 วันข้างหน้า</h3>${anyLowFlag?'<span class="badge badge-err">⚠️ มีวันที่เสี่ยงขาดสต็อก</span>':'<span class="badge badge-ok">ปกติ</span>'}</div>
       <div class="hint" style="margin-bottom:12px;">ใช้ยอดรับ/ยอดใช้จริงถ้ามีการบันทึกแล้ว ถ้ายังไม่มีจะใช้แผนสั่งซื้อ/ค่าประมาณการแทน (ดูคอลัมน์ที่มาประกอบ) — เป็นการพยากรณ์ ไม่ใช่ข้อมูลยืนยันจริง</div>
-      <table><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับ (คาด)</th><th>ที่มา</th><th>ใช้ (คาด)</th><th>ที่มา</th><th>คงเหลือ (คาด)</th></tr></thead>
+      <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('fc-table','พยากรณ์สต็อก')">📥 Export Excel</button>
+      <table id="fc-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับ (คาด)</th><th>ที่มา</th><th>ใช้ (คาด)</th><th>ที่มา</th><th>คงเหลือ (คาด)</th></tr></thead>
       <tbody>${forecast.map(f=>`<tr${f.low_stock_flag?' style="background:rgba(239,68,68,.08);"':''}>
         <td>${f.fc_date}${f.fc_date===todayISO()?' <span style="color:var(--amber);">(วันนี้)</span>':''}</td>
         <td>${fmt(f.opening_kg)}</td><td>${fmt(f.expected_received_kg)}</td><td><span class="badge ${srcCls[f.received_source]}">${srcLabel[f.received_source]}</span></td>
@@ -473,6 +513,7 @@ async function renderInventory(){
       <div class="field"><label>จากวันที่</label><input type="date" id="inv-from" value="${from}"></div>
       <div class="field"><label>ถึงวันที่</label><input type="date" id="inv-to" value="${to}"></div>
       <button class="btn btn-primary" onclick="loadInventoryTable()">ค้นหา</button>
+      <button class="btn btn-secondary" onclick="exportTableToExcel('inv-table','สต็อกคลัง')">📥 Export Excel</button>
     </div>
     <div class="card"><table id="inv-table"><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับเข้า</th><th>ใช้ไป</th><th>ปรับปรุง</th><th>คงเหลือ</th><th>%</th></tr></thead><tbody></tbody></table></div>
     ${isAdmin ? `
@@ -487,6 +528,7 @@ async function renderInventory(){
       </div>
       <div id="adj-result" class="hint"></div>
       <h3 class="card-title section-gap">ประวัติการปรับสต็อก</h3>
+      <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('adj-table','ประวัติปรับสต็อก')">📥 Export Excel</button>
       <table id="adj-table"><thead><tr><th>วันที่</th><th>ปรับ (กก.)</th><th>เหตุผล</th><th>โดย</th><th>เมื่อ</th></tr></thead><tbody></tbody></table>
     </div>` : ''}`;
   loadInventoryTable();
@@ -567,6 +609,7 @@ async function switchChickenTab(t){
         <div class="field"><label>จากวันที่</label><input type="date" id="ck-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="ck-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadChickenTable()">ค้นหา</button>
+        <button class="btn btn-secondary" onclick="exportTableToExcel('ck-table','แผนไก่_ขนไก่')">📥 Export Excel</button>
         <button class="btn btn-danger" onclick="deleteRange('chicken_plan','ck-from','ck-to')">ลบทั้งช่วง</button>
       </div>
       <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ตัดสต็อกด้วย</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
@@ -656,6 +699,7 @@ async function renderActualUse(){
         <div class="field"><label>จากวันที่</label><input type="date" id="au-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="au-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadActualUseTable()">ค้นหา</button>
+        <button class="btn btn-secondary" onclick="exportTableToExcel('au-table','ยอดใช้ไม้จริง')">📥 Export Excel</button>
       </div>
       <table id="au-table"><thead><tr><th>วันที่</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ผลต่าง</th><th>ตัดสต็อกด้วย</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
@@ -717,43 +761,54 @@ async function clearActualUse(date){
 }
 
 /* ============================================================
-   RECONCILE — เทียบแผนสั่งซื้อ vs รับจริง
+   RECONCILE — เทียบแผนสั่งซื้อ vs รับจริง (ตารางกว้าง แบบสเปรดชีตเดิม)
+   คอลัมน์: วันที่ | นน.ไก่เข้า | [ต่อซัพพลายเออร์: แผน/ส่งจริง] | รวมไม้ที่มาจริง | ประมาณการใช้ | ใช้จริง | ไม้คงเหลือ
 ============================================================ */
 async function renderReconcile(){
-  const cfg = await getConfigMap();
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">เทียบแผนสั่งซื้อ vs รับจริง</h2>
     <div class="toolbar">
       <div class="field"><label>จากวันที่</label><input type="date" id="rc-from" value="${daysAgoISO(13)}"></div>
       <div class="field"><label>ถึงวันที่</label><input type="date" id="rc-to" value="${todayISO()}"></div>
       <button class="btn btn-primary" onclick="loadReconcile()">ค้นหา</button>
+      <button class="btn btn-secondary" onclick="exportTableToExcel('rc-table','เทียบแผน_รับจริง')">📥 Export Excel</button>
     </div>
-    <div class="hint" style="margin-bottom:14px;">
-      🟢 ≥ ${cfg.RECON_GOOD_PCT||100}% ตรงตามแผน &nbsp;|&nbsp;
-      🟡 ${cfg.RECON_WARN_PCT||90}–${(cfg.RECON_GOOD_PCT||100)-0.1}% ใกล้เคียง &nbsp;|&nbsp;
-      🟠 &lt; ${cfg.RECON_WARN_PCT||90}% ขาดส่งมาก &nbsp;|&nbsp;
-      ⚪ วางแผนไว้แต่ยังไม่มารับ &nbsp;
-      <span style="float:right;">ปรับเกณฑ์ได้ที่ ตั้งค่าระบบ → สูตรคำนวณ (RECON_GOOD_PCT / RECON_WARN_PCT)</span>
-    </div>
-    <div class="card"><table id="rc-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>แผน (กก.)</th><th>รับจริง (กก.)</th><th>ส่วนต่าง</th><th>%</th><th>สถานะ</th></tr></thead><tbody></tbody></table></div>`;
+    <div class="hint" style="margin-bottom:14px;">สีแดงในคอลัมน์ "ไม้คงเหลือ" = ต่ำกว่า 0 (ควรตรวจสอบ) — คอลัมน์ "ใช้จริง" ว่าง = ยังไม่บันทึก ระบบใช้ค่าประมาณการตัดสต็อกแทนอยู่</div>
+    <div class="card" style="overflow-x:auto;"><table id="rc-table"><thead id="rc-thead"></thead><tbody id="rc-tbody"></tbody></table></div>`;
   loadReconcile();
 }
 async function loadReconcile(){
   const from = document.getElementById('rc-from').value, to = document.getElementById('rc-to').value;
-  const cfg = await getConfigMap();
-  const goodPct = cfg.RECON_GOOD_PCT || 100, warnPct = cfg.RECON_WARN_PCT || 90;
-  const rows = await rpc('get_purchase_reconciliation', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
-  document.querySelector('#rc-table tbody').innerHTML = (rows||[]).map(r=>{
-    let badge;
-    if(r.planned_kg > 0 && r.received_kg === 0) badge = '<span class="badge badge-info">⚪ ยังไม่มารับ</span>';
-    else if(r.pct == null) badge = '<span class="badge badge-info">⚪ ไม่มีแผน (รับนอกแผน)</span>';
-    else if(r.pct >= goodPct) badge = '<span class="badge badge-ok">🟢 ตรงตามแผน</span>';
-    else if(r.pct >= warnPct) badge = '<span class="badge badge-warn">🟡 ใกล้เคียง</span>';
-    else badge = '<span class="badge badge-err">🟠 ขาดส่งมาก</span>';
-    return `<tr><td>${r.the_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.planned_kg)}</td><td>${fmt(r.received_kg)}</td>
-    <td style="${r.diff_kg<0?'color:var(--red);':r.diff_kg>0?'color:var(--blue);':''}">${r.diff_kg>0?'+':''}${fmt(r.diff_kg)}</td>
-    <td>${r.pct==null?'-':fmt(r.pct,1)+'%'}</td><td>${badge}</td></tr>`;
-  }).join('') || '<tr><td colspan="7">ไม่มีข้อมูลในช่วงนี้ (ไม่มีทั้งแผนและรับจริง)</td></tr>';
+  const [detail, summary, suppliers] = await Promise.all([
+    rpc('get_reconciliation_detail', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    rpc('get_reconciliation_summary', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    loadSuppliers()
+  ]);
+
+  // สร้างหัวตารางแบบ dynamic ตามจำนวนซัพพลายเออร์
+  const theadHtml = `<tr>
+    <th rowspan="2">วันที่</th><th rowspan="2">นน.ไก่เข้า (กก.)</th>
+    ${suppliers.map(s=>`<th colspan="2">${s.name}</th>`).join('')}
+    <th rowspan="2">รวมไม้ที่มาจริง (กก.)</th><th rowspan="2">ประมาณการใช้ (กก.)</th><th rowspan="2">ใช้จริง (กก.)</th><th rowspan="2">ไม้คงเหลือ (กก.)</th>
+    </tr><tr>${suppliers.map(()=>`<th>แผน (กก.)</th><th>ส่งจริง (กก.)</th>`).join('')}</tr>`;
+  document.getElementById('rc-thead').innerHTML = theadHtml;
+
+  // index รายละเอียดต่อซัพพลายเออร์ด้วย key = date|supplier_id
+  const detailMap = {};
+  (detail||[]).forEach(d=>{ detailMap[d.the_date+'|'+d.supplier_id] = d; });
+
+  document.getElementById('rc-tbody').innerHTML = (summary||[]).map(r=>{
+    const supplierCells = suppliers.map(s=>{
+      const d = detailMap[r.the_date+'|'+s.id];
+      const planned = d ? d.planned_kg : 0, received = d ? d.received_kg : 0;
+      return `<td>${planned>0?fmt(planned):'-'}</td><td>${received>0?fmt(received):'-'}</td>`;
+    }).join('');
+    const closingNeg = r.closing_stock_kg!=null && r.closing_stock_kg < 0;
+    return `<tr><td>${r.the_date}</td><td>${fmt(r.chicken_kg)}</td>${supplierCells}
+      <td>${fmt(r.total_received_kg)}</td><td>${fmt(r.calc_wood_kg)}</td>
+      <td style="${r.actual_wood_kg!=null?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${r.actual_wood_kg!=null?fmt(r.actual_wood_kg):'-'}</td>
+      <td style="${closingNeg?'color:var(--red);font-weight:700;':'color:var(--amber);font-weight:700;'}">${r.closing_stock_kg!=null?fmt(r.closing_stock_kg):'-'}</td></tr>`;
+  }).join('') || `<tr><td colspan="${4+suppliers.length*2}">ไม่มีข้อมูลในช่วงนี้</td></tr>`;
 }
 
 /* ============================================================
@@ -793,6 +848,7 @@ async function renderPurchase(){
         <div class="field"><label>จากวันที่</label><input type="date" id="pp-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="pp-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadPurchaseTable()">ค้นหา</button>
+        <button class="btn btn-secondary" onclick="exportTableToExcel('pp-table','แผนสั่งซื้อ')">📥 Export Excel</button>
         <button class="btn btn-danger" onclick="deleteRange('purchase_plan','pp-from','pp-to')">ลบทั้งช่วง</button>
       </div>
       <table id="pp-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>พ่วง</th><th>กก.</th><th></th></tr></thead><tbody></tbody></table>
@@ -878,6 +934,7 @@ async function renderReceipt(){
         <div class="field"><label>จากวันที่</label><input type="date" id="wr-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="wr-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadReceiptTable()">ค้นหา</button>
+        <button class="btn btn-secondary" onclick="exportTableToExcel('wr-table','บันทึกรับไม้')">📥 Export Excel</button>
         <button class="btn btn-danger" onclick="deleteRange('wood_receipt','wr-from','wr-to')">ลบทั้งช่วง</button>
       </div>
       <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>กก.</th><th>เลขที่</th><th>หมายเหตุ</th><th></th></tr></thead><tbody></tbody></table>
@@ -960,6 +1017,7 @@ async function renderSteam(){
         <div class="field"><label>จากวันที่</label><input type="date" id="st-from" value="${daysAgoISO(29)}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="st-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadSteamTable()">ค้นหา</button>
+        <button class="btn btn-secondary" onclick="exportTableToExcel('st-table','บันทึกไอน้ำ')">📥 Export Excel</button>
         <button class="btn btn-danger" onclick="deleteRange('steam_usage','st-from','st-to')">ลบทั้งช่วง</button>
       </div>
       <table id="st-table"><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th><th>ไก่ (กก.)</th><th>SEC (kg/kg)</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
@@ -1027,6 +1085,7 @@ async function renderSupplierView(){
         <div class="field"><label>จากวันที่</label><input type="date" id="sv-from" value="${todayISO()}"></div>
         <div class="field"><label>ถึงวันที่</label><input type="date" id="sv-to" value="${daysAgoISO(-13)}"></div>
         <button class="btn btn-secondary" onclick="loadSupplierSchedule()">ค้นหา</button>
+        <button class="btn btn-secondary" onclick="exportTableToExcel('sv-table','กำหนดส่งของฉัน')">📥 Export Excel</button>
       </div>
       <table id="sv-table"><thead><tr><th>วันที่</th><th>พ่วง</th><th>กก.</th></tr></thead><tbody></tbody></table>
     </div>`;
@@ -1084,12 +1143,14 @@ async function loadReports(){
     <div class="grid grid-2 section-gap">
       <div class="card">
         <h3 class="card-title" style="margin-top:0;">แยกตามซัพพลายเออร์</h3>
-        <table><thead><tr><th>ซัพพลายเออร์</th><th>รวม (กก.)</th><th>จำนวนพ่วง</th></tr></thead>
+        <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('rp-supplier-table','รายงาน_ตามซัพพลายเออร์')">📥 Export Excel</button>
+        <table id="rp-supplier-table"><thead><tr><th>ซัพพลายเออร์</th><th>รวม (กก.)</th><th>จำนวนพ่วง</th></tr></thead>
         <tbody>${(r.by_supplier||[]).map(s=>`<tr><td>${s.supplier_name||''}</td><td>${fmt(s.total_kg)}</td><td>${fmt(s.total_trailers)}</td></tr>`).join('') || '<tr><td colspan="3">ไม่มีข้อมูล</td></tr>'}</tbody></table>
       </div>
       <div class="card">
         <h3 class="card-title" style="margin-top:0;">สรุปรายสัปดาห์ (SEC)</h3>
-        <table><thead><tr><th>สัปดาห์</th><th>ไก่ (กก.)</th><th>ไม้ (กก.)</th><th>ไอน้ำ (กก.)</th><th>SEC</th></tr></thead>
+        <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('rp-weekly-table','รายงาน_รายสัปดาห์')">📥 Export Excel</button>
+        <table id="rp-weekly-table"><thead><tr><th>สัปดาห์</th><th>ไก่ (กก.)</th><th>ไม้ (กก.)</th><th>ไอน้ำ (กก.)</th><th>SEC</th></tr></thead>
         <tbody>${weeklyRows.map(w=>`<tr><td>${w.week}</td><td>${fmt(w.chicken)}</td><td>${fmt(w.wood)}</td><td>${fmt(w.steam)}</td><td style="color:var(--purp);">${w.chicken?fmt(w.steam/w.chicken,3):'-'}</td></tr>`).join('') || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>'}</tbody></table>
       </div>
     </div>`;
@@ -1121,7 +1182,8 @@ async function switchSettingsTab(t){
     const rows = await loadSuppliers();
     window._suppliersById = {}; rows.forEach(s=>window._suppliersById[s.id]=s);
     body.innerHTML = `<div class="card">
-      <table><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th><th></th></tr></thead>
+      <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('sup-list-table','ซัพพลายเออร์')">📥 Export Excel</button>
+      <table id="sup-list-table"><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th><th></th></tr></thead>
       <tbody>${rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'<span style="color:var(--ink-dim);">(ไม่มี login)</span>'}</td>
       <td><button class="btn btn-secondary btn-sm" onclick="editSupplierForm('${s.id}')">แก้ไข</button></td></tr>`).join('')}</tbody></table>
       <h3 class="card-title section-gap" id="ns-form-title">เพิ่มซัพพลายเออร์ใหม่</h3>
