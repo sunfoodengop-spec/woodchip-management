@@ -1207,13 +1207,18 @@ async function switchSettingsTab(t){
       <tbody>${rows.map(r=>`<tr><td>${r.key}</td><td><input type="text" value="${r.value}" id="cfg-${r.key}" style="width:140px;background:var(--navy);border:1px solid var(--line);color:var(--ink);padding:4px 8px;border-radius:4px;"></td>
       <td style="font-family:var(--font-body);">${r.description||''}</td><td><button class="btn btn-secondary btn-sm" onclick="saveConfig('${r.key}')">บันทึก</button></td></tr>`).join('')}</tbody></table></div>`;
   } else if(t==='suppliers'){
-    const rows = await loadSuppliers();
-    window._suppliersById = {}; rows.forEach(s=>window._suppliersById[s.id]=s);
-    body.innerHTML = `<div class="card">
-      <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('sup-list-table','ซัพพลายเออร์')">📥 Export Excel</button>
+    await refreshSuppliersList();
+  } else if(t==='users'){
+    await refreshUsersList();
+  }
+}
+async function renderSuppliersTabShell(){
+  const body = document.getElementById('settings-body');
+  body.innerHTML = `<div class="card">
+      <div class="card-hd"><h3 class="card-title" style="margin:0;">รายชื่อซัพพลายเออร์</h3>
+        <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('sup-list-table','ซัพพลายเออร์')">📥 Export Excel</button></div>
       <table id="sup-list-table"><thead><tr><th>ชื่อ</th><th>ผู้ติดต่อ</th><th>โทรศัพท์</th><th>Username</th><th></th></tr></thead>
-      <tbody>${rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'<span style="color:var(--ink-dim);">(ไม่มี login)</span>'}</td>
-      <td><button class="btn btn-secondary btn-sm" onclick="editSupplierForm('${s.id}')">แก้ไข</button></td></tr>`).join('')}</tbody></table>
+      <tbody id="sup-list-tbody"></tbody></table>
       <h3 class="card-title section-gap" id="ns-form-title">เพิ่มซัพพลายเออร์ใหม่</h3>
       <div id="ns-form-msg"></div>
       <div class="toolbar">
@@ -1224,24 +1229,24 @@ async function switchSettingsTab(t){
         <button class="btn btn-primary" id="ns-submit-btn" onclick="saveSupplier()">เพิ่ม</button>
         <button class="btn btn-secondary hide" id="ns-cancel-btn" onclick="cancelEditSupplier()">ยกเลิก</button>
       </div></div>`;
-  } else if(t==='users'){
-    const rows = await rpc('get_users', { p_token: SESSION.token });
-    window._usersById = {}; (rows||[]).forEach(u=>window._usersById[u.id]=u);
-    const roleLabel = {ENG:'วิศวกรรม', PUR:'จัดซื้อ', STO:'สโตร์', PRD:'ผลิต', ADMIN:'ผู้ดูแลระบบ'};
-    body.innerHTML = `<div class="card">
+}
+async function refreshSuppliersList(){
+  if(!document.getElementById('sup-list-table')){
+    renderSuppliersTabShell();
+  }
+  SUPPLIERS_CACHE = null;
+  const rows = await loadSuppliers();
+  window._suppliersById = {}; rows.forEach(s=>window._suppliersById[s.id]=s);
+  document.getElementById('sup-list-tbody').innerHTML = rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'<span style="color:var(--ink-dim);">(ไม่มี login)</span>'}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="editSupplierForm('${s.id}')">แก้ไข</button></td></tr>`).join('') || '<tr><td colspan="5">ยังไม่มีซัพพลายเออร์</td></tr>';
+}
+async function renderUsersTabShell(){
+  const body = document.getElementById('settings-body');
+  body.innerHTML = `<div class="card">
       <div class="card-hd"><h3 class="card-title" style="margin:0;">รายชื่อผู้ใช้งาน</h3>
         <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('user-list-table','ผู้ใช้งาน')">📥 Export Excel</button></div>
       <table id="user-list-table"><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>บทบาท</th><th>สถานะรหัสผ่าน</th><th>ใช้งาน</th><th></th></tr></thead>
-      <tbody>${(rows||[]).map(u=>`<tr${!u.is_active?' style="opacity:.5;"':''}>
-        <td class="mono">${u.username}</td><td>${u.full_name||'-'}</td><td>${u.department||'-'}</td>
-        <td><span class="role-badge role-${u.role}">${u.role}</span> ${roleLabel[u.role]||''}</td>
-        <td>${u.first_login?'<span class="badge badge-warn">ยังไม่เปลี่ยนรหัสผ่าน</span>':'<span class="badge badge-ok">ตั้งรหัสแล้ว</span>'}</td>
-        <td>${u.is_active?'✅':'⛔ ปิดใช้งาน'}</td>
-        <td style="white-space:nowrap;">
-          <button class="btn btn-secondary btn-sm" onclick="editUserForm('${u.id}')">แก้ไข</button>
-          <button class="btn btn-secondary btn-sm" onclick="resetUserPw('${u.username}')">รีเซ็ตรหัส</button>
-          <button class="btn btn-secondary btn-sm" onclick="toggleUserActive('${u.id}', ${!u.is_active})">${u.is_active?'ปิดใช้งาน':'เปิดใช้งาน'}</button>
-        </td></tr>`).join('') || '<tr><td colspan="7">ยังไม่มีผู้ใช้งาน</td></tr>'}</tbody></table>
+      <tbody id="user-list-tbody"></tbody></table>
 
       <h3 class="card-title section-gap" id="nu-form-title">เพิ่มผู้ใช้งานใหม่</h3>
       <div class="hint" style="margin-bottom:10px;">Username = รหัสพนักงาน โดยอัตโนมัติ — รหัสผ่านตั้งต้น 123456789 บังคับเปลี่ยนตอน login ครั้งแรก</div>
@@ -1264,7 +1269,26 @@ async function switchSettingsTab(t){
       </div>
       <div id="nu-preview"></div>
       </div>`;
+}
+// โหลด/รีเฟรช "เฉพาะตาราง" รายชื่อผู้ใช้ — ไม่แตะ #nu-msg / #nu-preview
+// เพื่อไม่ให้ข้อความผลลัพธ์ (สำเร็จ/error) ถูกลบทิ้งก่อนอ่านทัน
+async function refreshUsersList(){
+  if(!document.getElementById('user-list-table')){
+    renderUsersTabShell();
   }
+  const roleLabel = {ENG:'วิศวกรรม', PUR:'จัดซื้อ', STO:'สโตร์', PRD:'ผลิต', ADMIN:'ผู้ดูแลระบบ'};
+  const rows = await rpc('get_users', { p_token: SESSION.token });
+  window._usersById = {}; (rows||[]).forEach(u=>window._usersById[u.id]=u);
+  document.getElementById('user-list-tbody').innerHTML = (rows||[]).map(u=>`<tr${!u.is_active?' style="opacity:.5;"':''}>
+        <td class="mono">${u.username}</td><td>${u.full_name||'-'}</td><td>${u.department||'-'}</td>
+        <td><span class="role-badge role-${u.role}">${u.role}</span> ${roleLabel[u.role]||''}</td>
+        <td>${u.first_login?'<span class="badge badge-warn">ยังไม่เปลี่ยนรหัสผ่าน</span>':'<span class="badge badge-ok">ตั้งรหัสแล้ว</span>'}</td>
+        <td>${u.is_active?'✅':'⛔ ปิดใช้งาน'}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-secondary btn-sm" onclick="editUserForm('${u.id}')">แก้ไข</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetUserPw('${u.username}')">รีเซ็ตรหัส</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleUserActive('${u.id}', ${!u.is_active})">${u.is_active?'ปิดใช้งาน':'เปิดใช้งาน'}</button>
+        </td></tr>`).join('') || '<tr><td colspan="7">ยังไม่มีผู้ใช้งาน</td></tr>';
 }
 async function saveConfig(key){
   const val = document.getElementById('cfg-'+key).value;
@@ -1285,7 +1309,13 @@ async function saveSupplier(){
       p_name: name, p_contact_name: document.getElementById('ns-contact').value,
       p_phone: document.getElementById('ns-phone').value, p_username: document.getElementById('ns-username').value });
     SUPPLIERS_CACHE = null;
-    switchSettingsTab('suppliers');
+    msg.innerHTML = `<div class="ok-msg">✅ บันทึกแล้ว</div>`;
+    document.getElementById('ns-name').value=''; document.getElementById('ns-contact').value='';
+    document.getElementById('ns-phone').value=''; document.getElementById('ns-username').value='';
+    document.getElementById('ns-submit-btn').textContent='เพิ่ม'; delete document.getElementById('ns-submit-btn').dataset.editId;
+    document.getElementById('ns-cancel-btn').classList.add('hide');
+    document.getElementById('ns-form-title').textContent='เพิ่มซัพพลายเออร์ใหม่';
+    refreshSuppliersList();
   }catch(e){
     msg.innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message.includes('duplicate')||e.message.includes('unique') ? 'Username นี้ถูกใช้แล้ว ลองเว้นว่างหรือใช้ชื่ออื่น' : e.message}</div>`;
   }
@@ -1305,7 +1335,11 @@ function editSupplierForm(id){
   document.getElementById('ns-name').scrollIntoView({behavior:'smooth', block:'center'});
 }
 function cancelEditSupplier(){
-  switchSettingsTab('suppliers');
+  document.getElementById('ns-name').value=''; document.getElementById('ns-contact').value='';
+  document.getElementById('ns-phone').value=''; document.getElementById('ns-username').value='';
+  document.getElementById('ns-submit-btn').textContent='เพิ่ม'; delete document.getElementById('ns-submit-btn').dataset.editId;
+  document.getElementById('ns-cancel-btn').classList.add('hide');
+  document.getElementById('ns-form-title').textContent='เพิ่มซัพพลายเออร์ใหม่';
 }
 
 /* ---------- Users: add/edit/list/paste-import ---------- */
@@ -1331,7 +1365,13 @@ async function saveUser(){
       p_username: username, p_full_name: document.getElementById('nu-fullname').value,
       p_department: document.getElementById('nu-dept').value, p_role: role, p_supplier_id: null });
     msg.innerHTML = `<div class="ok-msg">✅ บันทึกแล้ว${id?'':' — รหัสผ่านตั้งต้น 123456789'}</div>`;
-    switchSettingsTab('users');
+    document.getElementById('nu-username').disabled = false;
+    document.getElementById('nu-username').value=''; document.getElementById('nu-fullname').value='';
+    document.getElementById('nu-dept').value=''; document.getElementById('nu-role').value='ENG';
+    document.getElementById('nu-submit-btn').textContent='เพิ่มผู้ใช้'; delete document.getElementById('nu-submit-btn').dataset.editId;
+    document.getElementById('nu-cancel-btn').classList.add('hide');
+    document.getElementById('nu-form-title').textContent='เพิ่มผู้ใช้งานใหม่';
+    refreshUsersList();
   }catch(e){
     const friendly = (e.message.includes('duplicate')||e.message.includes('unique')) ? 'รหัสพนักงานนี้มีอยู่แล้วในระบบ'
       : e.message.includes('INVALID_ROLE') ? 'บทบาทไม่ถูกต้อง ต้องเป็น ENG/PUR/STO/PRD/ADMIN'
@@ -1355,11 +1395,16 @@ function editUserForm(id){
   document.getElementById('nu-username').scrollIntoView({behavior:'smooth', block:'center'});
 }
 function cancelEditUser(){
-  switchSettingsTab('users');
+  document.getElementById('nu-username').disabled = false;
+  document.getElementById('nu-username').value=''; document.getElementById('nu-fullname').value='';
+  document.getElementById('nu-dept').value=''; document.getElementById('nu-role').value='ENG';
+  document.getElementById('nu-submit-btn').textContent='เพิ่มผู้ใช้'; delete document.getElementById('nu-submit-btn').dataset.editId;
+  document.getElementById('nu-cancel-btn').classList.add('hide');
+  document.getElementById('nu-form-title').textContent='เพิ่มผู้ใช้งานใหม่';
 }
 async function toggleUserActive(id, active){
   await rpc('set_user_active', { p_token: SESSION.token, p_id: id, p_active: active });
-  switchSettingsTab('users');
+  refreshUsersList();
 }
 function previewUserPaste(){
   document.getElementById('nu-msg').innerHTML='';
@@ -1405,7 +1450,7 @@ async function confirmUserImport(n){
     ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} คน (รหัสผ่านตั้งต้น 123456789 ทุกคน)</div>`
     : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} คน — ล้มเหลว:<br>${failed.join('<br>')}</div>`;
   document.getElementById('nu-paste').value='';
-  switchSettingsTab('users');
+  refreshUsersList();
 }
 async function resetUserPw(username){
   if(!confirm(`ยืนยันรีเซ็ตรหัสผ่านของ ${username} เป็น 123456789?`)) return;
