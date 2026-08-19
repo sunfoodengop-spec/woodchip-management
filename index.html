@@ -1195,6 +1195,7 @@ async function renderSettings(){
     <div class="tabs">
       <div class="tab active" data-t="formula" onclick="switchSettingsTab('formula')">สูตรคำนวณ</div>
       <div class="tab" data-t="suppliers" onclick="switchSettingsTab('suppliers')">ซัพพลายเออร์</div>
+      <div class="tab" data-t="deletions" onclick="switchSettingsTab('deletions')">ประวัติการลบ</div>
       ${SESSION.role==='ADMIN' ? '<div class="tab" data-t="users" onclick="switchSettingsTab(\'users\')">ผู้ใช้งาน</div>' : ''}
     </div>
     <div id="settings-body"></div>`;
@@ -1210,6 +1211,8 @@ async function switchSettingsTab(t){
       <td style="font-family:var(--font-body);">${r.description||''}</td><td><button class="btn btn-secondary btn-sm" onclick="saveConfig('${r.key}')">บันทึก</button></td></tr>`).join('')}</tbody></table></div>`;
   } else if(t==='suppliers'){
     await refreshSuppliersList();
+  } else if(t==='deletions'){
+    await renderDeletionHistory();
   } else if(t==='users'){
     await refreshUsersList();
   }
@@ -1242,6 +1245,47 @@ async function refreshSuppliersList(){
   document.getElementById('sup-list-tbody').innerHTML = rows.map(s=>`<tr><td>${s.name}</td><td>${s.contact_name||'-'}</td><td>${s.phone||'-'}</td><td>${s.username||'<span style="color:var(--ink-dim);">(ไม่มี login)</span>'}</td>
       <td><button class="btn btn-secondary btn-sm" onclick="editSupplierForm('${s.id}')">แก้ไข</button></td></tr>`).join('') || '<tr><td colspan="5">ยังไม่มีซัพพลายเออร์</td></tr>';
 }
+
+/* ---------- ประวัติการลบ + กู้คืน (ADMIN เท่านั้นที่กู้คืนได้) ---------- */
+const TABLE_LABEL_TH = {chicken_plan:'แผนไก่/ขนไก่', purchase_plan:'แผนสั่งซื้อ', wood_receipt:'บันทึกรับไม้', steam_usage:'บันทึกไอน้ำ'};
+async function renderDeletionHistory(){
+  const body = document.getElementById('settings-body');
+  body.innerHTML = `<div class="card">
+    <h3 class="card-title" style="margin-top:0;">ประวัติการลบข้อมูล</h3>
+    <div class="hint" style="margin-bottom:12px;">ทุกการลบ (ทั้งลบช่วงและลบทีละแถว) ตั้งแต่อัปเดตระบบล่าสุด จะเก็บสำเนาไว้ให้กู้คืนได้ — ${SESSION.role==='ADMIN'?'คุณกู้คืนได้ในฐานะ Admin':'มีแค่ Admin เท่านั้นที่กู้คืนได้'}</div>
+    <div class="toolbar">
+      <div class="field"><label>จากวันที่</label><input type="date" id="del-from" value="${daysAgoISO(29)}"></div>
+      <div class="field"><label>ถึงวันที่</label><input type="date" id="del-to" value="${todayISO()}"></div>
+      <button class="btn btn-secondary" onclick="loadDeletionHistory()">ค้นหา</button>
+      <button class="btn btn-secondary" onclick="exportTableToExcel('del-table','ประวัติการลบ')">📥 Export Excel</button>
+    </div>
+    <table id="del-table"><thead><tr><th>เมื่อ</th><th>ตาราง</th><th>ลบโดย</th><th>รายละเอียด</th><th>จำนวนแถว</th><th></th></tr></thead><tbody id="del-tbody"></tbody></table>
+  </div>`;
+  loadDeletionHistory();
+}
+async function loadDeletionHistory(){
+  const from = document.getElementById('del-from').value, to = document.getElementById('del-to').value;
+  const rows = await rpc('get_deletion_history', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  window._deletionsById = {}; (rows||[]).forEach(r=>window._deletionsById[r.id]=r);
+  document.getElementById('del-tbody').innerHTML = (rows||[]).map(r=>`<tr>
+    <td>${(r.log_time||'').replace('T',' ').slice(0,16)}</td>
+    <td>${TABLE_LABEL_TH[r.table_name]||r.table_name}</td>
+    <td>${r.username}</td>
+    <td>${r.description}</td>
+    <td>${r.row_count}</td>
+    <td>${r.restored ? '<span class="badge badge-ok">กู้คืนแล้ว</span>' : (SESSION.role==='ADMIN' ? `<button class="btn btn-secondary btn-sm" onclick="restoreDeleted('${r.id}')">↺ กู้คืน</button>` : '<span class="badge badge-info">รอ Admin กู้คืน</span>')}</td>
+    </tr>`).join('') || '<tr><td colspan="6">ไม่มีประวัติการลบในช่วงนี้ (หรือเป็นการลบก่อนอัปเดตฟีเจอร์นี้ ซึ่งไม่มีสำเนาย้อนหลัง)</td></tr>';
+}
+async function restoreDeleted(auditId){
+  const info = window._deletionsById[auditId];
+  if(!confirm(`ยืนยันกู้คืนข้อมูล "${info.description}"? ถ้ามีข้อมูลใหม่ทับวันเดิมไปแล้ว แถวนั้นจะถูกข้าม ไม่ทับของใหม่`)) return;
+  try{
+    const res = await rpc('restore_deleted_rows', { p_token: SESSION.token, p_audit_id: auditId });
+    alert(`กู้คืนสำเร็จ ${res.restored} แถว${res.skipped>0?` (ข้าม ${res.skipped} แถวเพราะมีข้อมูลใหม่ทับไปแล้ว)`:''}`);
+    loadDeletionHistory();
+  }catch(e){ alert('กู้คืนไม่สำเร็จ: ' + e.message); }
+}
+
 async function renderUsersTabShell(){
   const body = document.getElementById('settings-body');
   body.innerHTML = `<div class="card">
@@ -1468,13 +1512,13 @@ async function resetUserPw(username){
 ============================================================ */
 async function deleteRange(table, fromId, toId){
   const from = document.getElementById(fromId).value, to = document.getElementById(toId).value;
-  if(!confirm(`ยืนยันลบข้อมูลตั้งแต่ ${from} ถึง ${to}? การกระทำนี้ไม่สามารถย้อนกลับได้`)) return;
-  const count = await rpc('delete_records', { p_token: SESSION.token, p_table: table, p_date_from: from, p_date_to: to });
-  alert(`ลบข้อมูล ${count} แถวเรียบร้อย`);
+  if(!confirm(`ยืนยันลบข้อมูลตั้งแต่ ${from} ถึง ${to}? (ตอนนี้กู้คืนได้ในภายหลังผ่าน ตั้งค่า → ประวัติการลบ)`)) return;
+  const res = await rpc('delete_records', { p_token: SESSION.token, p_table: table, p_date_from: from, p_date_to: to });
+  alert(`ลบข้อมูล ${res.deleted_count} แถวเรียบร้อย — กู้คืนได้ที่ ตั้งค่า → ประวัติการลบ`);
   router();
 }
 async function deleteRow(table, id){
-  if(!confirm('ยืนยันลบแถวนี้?')) return;
+  if(!confirm('ยืนยันลบแถวนี้? (กู้คืนได้ภายหลังผ่าน ตั้งค่า → ประวัติการลบ)')) return;
   await rpc('delete_record_by_id', { p_token: SESSION.token, p_table: table, p_id: id });
   router();
 }
