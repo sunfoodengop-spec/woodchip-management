@@ -1311,8 +1311,10 @@ function cancelEditSupplier(){
 /* ---------- Users: add/edit/list/paste-import ---------- */
 const ROLE_ALIAS = {
   'ENG':'ENG','PUR':'PUR','STO':'STO','PRD':'PRD','ADMIN':'ADMIN',
+  'PROD':'PRD','PRODUCTION':'PRD','PURCHASE':'PUR','PURCHASING':'PUR','STORE':'STO','STOCK':'STO','ENGINEER':'ENG','ENGINEERING':'ENG',
   'วิศวกรรม':'ENG','จัดซื้อ':'PUR','สโตร์':'STO','ผลิต':'PRD','ผู้ดูแลระบบ':'ADMIN','แอดมิน':'ADMIN'
 };
+const VALID_ROLES = ['ENG','PUR','STO','PRD','ADMIN'];
 function normalizeRole(v){
   const key = (v||'').trim();
   return ROLE_ALIAS[key] || ROLE_ALIAS[key.toUpperCase()] || key.toUpperCase();
@@ -1366,13 +1368,20 @@ function previewUserPaste(){
   lines.forEach(line=>{
     const parts = (line.includes('\t') ? line.split('\t') : line.split(',')).map(s=>s.trim());
     if(parts.length < 4) return;
-    rows.push({ code:parts[0], name:parts[1], dept:parts[2], role:normalizeRole(parts[3]) });
+    rows.push({ code:parts[0], name:parts[1], dept:parts[2], role:normalizeRole(parts[3]), rawRole:parts[3] });
   });
   const box = document.getElementById('nu-preview');
-  if(!rows.length){ box.innerHTML = '<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ต้องมีครบ 4 คอลัมน์ (รหัส/ชื่อ/แผนก/บทบาท) คั่นด้วย Tab</div>'; return; }
-  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>บทบาท</th></tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr><td><input type="text" id="nup-code-${i}" value="${r.code}"></td><td><input type="text" id="nup-name-${i}" value="${r.name}"></td><td><input type="text" id="nup-dept-${i}" value="${r.dept}"></td>
-    <td><select id="nup-role-${i}"><option value="ENG"${r.role==='ENG'?' selected':''}>ENG</option><option value="PUR"${r.role==='PUR'?' selected':''}>PUR</option><option value="STO"${r.role==='STO'?' selected':''}>STO</option><option value="PRD"${r.role==='PRD'?' selected':''}>PRD</option><option value="ADMIN"${r.role==='ADMIN'?' selected':''}>ADMIN</option></select></td></tr>`).join('')}</tbody></table>
+  if(!rows.length){ box.innerHTML = '<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ต้องมีครบ 4 คอลัมน์ (รหัส/ชื่อ/แผนก/บทบาท) คั่นด้วย Tab แล้วกด "ดูตัวอย่าง" ก่อนทุกครั้ง</div>'; return; }
+  const invalidCount = rows.filter(r=>!VALID_ROLES.includes(r.role)).length;
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว${invalidCount?` — <span style="color:var(--red);font-weight:700;">⚠️ ${invalidCount} แถวมีบทบาทที่ระบบไม่รู้จัก (ไฮไลต์สีแดง) กรุณาแก้ในช่อง dropdown ก่อนกดยืนยัน</span>`:''}:</div>
+    <div class="preview-table"><table><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>บทบาท</th></tr></thead>
+    <tbody>${rows.map((r,i)=>{
+      const isInvalid = !VALID_ROLES.includes(r.role);
+      return `<tr><td><input type="text" id="nup-code-${i}" value="${r.code}"></td><td><input type="text" id="nup-name-${i}" value="${r.name}"></td><td><input type="text" id="nup-dept-${i}" value="${r.dept}"></td>
+    <td><select id="nup-role-${i}" style="${isInvalid?'border-color:var(--red);':''}">
+      ${isInvalid?`<option value="" selected disabled>⚠️ "${r.rawRole}" ไม่รู้จัก — เลือกใหม่</option>`:''}
+      <option value="ENG"${r.role==='ENG'?' selected':''}>ENG</option><option value="PUR"${r.role==='PUR'?' selected':''}>PUR</option><option value="STO"${r.role==='STO'?' selected':''}>STO</option><option value="PRD"${r.role==='PRD'?' selected':''}>PRD</option><option value="ADMIN"${r.role==='ADMIN'?' selected':''}>ADMIN</option></select></td></tr>`;
+    }).join('')}</tbody></table>
     <button class="btn btn-primary btn-sm" id="nu-import-btn" style="margin-top:10px;" onclick="confirmUserImport(${rows.length})">ยืนยันนำเข้า ${rows.length} คน</button>
     <div id="nu-import-status" class="hint"></div></div>`;
 }
@@ -1385,6 +1394,7 @@ async function confirmUserImport(n){
     const name = document.getElementById('nup-name-'+i).value.trim();
     const dept = document.getElementById('nup-dept-'+i).value.trim();
     const role = document.getElementById('nup-role-'+i).value;
+    if(!role){ failed.push(code+': ยังไม่ได้เลือกบทบาทที่ถูกต้อง (ข้ามแถวนี้)'); continue; }
     status.textContent = `กำลังบันทึก ${i+1}/${n} (${code})...`;
     try{
       await rpc('manage_user', { p_token: SESSION.token, p_id: null, p_username: code, p_full_name: name, p_department: dept, p_role: role, p_supplier_id: null });
