@@ -268,6 +268,7 @@ const NAV = [
   {hash:'#dashboard', label:'ภาพรวม', icon:'📊', roles:['ENG','PUR','STO','PRD','ADMIN']},
   {hash:'#inventory', label:'สต็อกคลัง', icon:'🏭', roles:['ENG','PUR','STO','PRD','ADMIN']},
   {hash:'#chicken', label:'แผนไก่ / ขนไก่', icon:'🐔', roles:['ENG','ADMIN']},
+  {hash:'#actualuse', label:'ใช้ไม้จริง', icon:'🔥', roles:['STO','ENG','ADMIN']},
   {hash:'#purchase', label:'แผนสั่งซื้อ', icon:'🛒', roles:['PUR','ENG','ADMIN']},
   {hash:'#receipt', label:'บันทึกรับไม้', icon:'📥', roles:['STO','ENG','ADMIN']},
   {hash:'#steam', label:'บันทึกไอน้ำ', icon:'💨', roles:['PRD','ENG','ADMIN']},
@@ -289,7 +290,7 @@ function router(){
   document.querySelectorAll('#sidebar a').forEach(a=>a.classList.toggle('active', a.getAttribute('data-hash')===h));
   const page = h.replace('#','');
   const renderFn = { dashboard:renderDashboard, inventory:renderInventory, chicken:renderChicken,
-    purchase:renderPurchase, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
+    actualuse:renderActualUse, purchase:renderPurchase, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
     reports:renderReports, settings:renderSettings }[page];
   document.getElementById('content').innerHTML = '<div class="loading-box"><div class="spin"></div>กำลังโหลด...</div>';
   if(renderFn) safeRender(renderFn);
@@ -552,7 +553,7 @@ async function switchChickenTab(t){
         <button class="btn btn-secondary" onclick="loadChickenTable()">ค้นหา</button>
         <button class="btn btn-danger" onclick="deleteRange('chicken_plan','ck-from','ck-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ไม้สับที่คำนวณได้ (กก.)</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ตัดสต็อกด้วย</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadChickenTable();
 }
@@ -602,11 +603,101 @@ async function confirmChickenImport(t, n){
 async function loadChickenTable(){
   const from = document.getElementById('ck-from').value, to = document.getElementById('ck-to').value;
   const rows = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
-  document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>`
-    <tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
-    <td style="color:var(--amber);">${fmt(r.calc_wood_kg)}</td><td>${r.recorded_by||''}</td>
-    <td><button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
-    || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
+  document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>{
+    const hasActual = r.actual_wood_kg!=null;
+    return `<tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
+    <td>${fmt(r.calc_wood_kg)}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
+    <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
+    <td>${r.recorded_by||''}</td>
+    <td><button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`;
+  }).join('') || '<tr><td colspan="8">ไม่มีข้อมูล</td></tr>';
+}
+
+/* ============================================================
+   ACTUAL WOOD USAGE — ยอดใช้ไม้จริง (ตัดสต็อกแทนค่าประมาณการเมื่อมี)
+============================================================ */
+async function renderActualUse(){
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">บันทึกยอดใช้ไม้จริง</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:12px;">ค่าประมาณการจากสูตรไก่ใช้สำหรับวางแผนสั่งซื้อล่วงหน้า — เมื่อมีการชั่ง/บันทึกยอดใช้ไม้จริงหน้างานแล้ว ระบบจะใช้ยอดจริงตัดสต็อกแทนค่าประมาณการโดยอัตโนมัติ</div>
+      <div class="toolbar">
+        <div class="field"><label>วันที่</label><input type="date" id="au-date" value="${todayISO()}"></div>
+        <div class="field"><label>ยอดใช้ไม้จริง (กก.)</label><input type="number" id="au-kg"></div>
+        <button class="btn btn-primary" onclick="saveActualUse()">บันทึก</button>
+      </div>
+      <div id="au-result" class="hint"></div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleZone('au-paste-zone')">📋 วางจาก Google Sheets</button>
+      <div class="paste-zone hide" id="au-paste-zone">
+        <label>วันที่ [Tab] ยอดใช้ไม้จริง (กก.)</label>
+        <textarea id="au-paste" rows="5" placeholder="เช่น 26/4/2026&#9;58200"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewActualUsePaste()">ดูตัวอย่าง</button>
+      </div>
+      <div id="au-preview"></div>
+    </div>
+    <div class="card section-gap">
+      <div class="toolbar">
+        <div class="field"><label>จากวันที่</label><input type="date" id="au-from" value="${daysAgoISO(29)}"></div>
+        <div class="field"><label>ถึงวันที่</label><input type="date" id="au-to" value="${todayISO()}"></div>
+        <button class="btn btn-secondary" onclick="loadActualUseTable()">ค้นหา</button>
+      </div>
+      <table id="au-table"><thead><tr><th>วันที่</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ผลต่าง</th><th>ตัดสต็อกด้วย</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
+    </div>`;
+  loadActualUseTable();
+}
+async function saveActualUse(){
+  const date = document.getElementById('au-date').value;
+  const kg = parseFloat(document.getElementById('au-kg').value || 0);
+  const res = await rpc('save_actual_wood_usage', { p_token: SESSION.token, p_date: date, p_actual_wood_kg: kg });
+  document.getElementById('au-result').innerHTML = `<span style="color:var(--green);">บันทึกยอดใช้จริงแล้ว ${fmt(res.actual_wood_kg)} กก. (ประมาณการเดิม ${fmt(res.calc_wood_kg)} กก.) — ระบบตัดสต็อกด้วยยอดจริงแล้ว</span>`;
+  document.getElementById('au-kg').value='';
+  loadActualUseTable();
+}
+function previewActualUsePaste(){
+  document.getElementById('au-result').innerHTML='';
+  const rows = parsePastedSheet(document.getElementById('au-paste').value, 2);
+  const box = document.getElementById('au-preview');
+  if(!rows.length){ box.innerHTML='<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์</div>'; return; }
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>ใช้จริง (กก.)</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="aup-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
+    <button class="btn btn-primary btn-sm" id="au-import-btn" style="margin-top:10px;" onclick="confirmActualUseImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
+    <div id="au-import-status" class="hint"></div></div>`;
+  window._auPasteRows = rows;
+}
+async function confirmActualUseImport(n){
+  const btn = document.getElementById('au-import-btn'); const status = document.getElementById('au-import-status');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
+  let ok=0, failed=[];
+  for(let i=0;i<n;i++){
+    const row = window._auPasteRows[i];
+    status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
+    const val = parseFloat(document.getElementById('aup-'+i).value || 0);
+    try{ await rpc('save_actual_wood_usage', { p_token: SESSION.token, p_date: row.date, p_actual_wood_kg: val }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
+  }
+  document.getElementById('au-preview').innerHTML = ok===n
+    ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
+    : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} แถว — ล้มเหลว:<br>${failed.join('<br>')}</div>`;
+  document.getElementById('au-paste').value='';
+  loadActualUseTable();
+}
+async function loadActualUseTable(){
+  const from = document.getElementById('au-from').value, to = document.getElementById('au-to').value;
+  const rows = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#au-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>{
+    const hasActual = r.actual_wood_kg!=null;
+    const diff = hasActual ? r.actual_wood_kg - r.calc_wood_kg : null;
+    return `<tr><td>${r.plan_date}</td><td>${fmt(r.calc_wood_kg)}</td>
+    <td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
+    <td style="${diff==null?'':diff>0?'color:var(--red);':'color:var(--green);'}">${diff==null?'-':(diff>0?'+':'')+fmt(diff)}</td>
+    <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
+    <td>${r.actual_recorded_by||r.recorded_by||''}</td>
+    <td>${hasActual?`<button class="row-del" onclick="clearActualUse('${r.plan_date}')" title="ล้างยอดจริง กลับไปใช้ประมาณการ">↺</button>`:''}</td></tr>`;
+  }).join('') || '<tr><td colspan="7">ไม่มีข้อมูล</td></tr>';
+}
+async function clearActualUse(date){
+  if(!confirm(`ยืนยันล้างยอดใช้จริงของวันที่ ${date}? ระบบจะกลับไปใช้ค่าประมาณการตัดสต็อกแทน`)) return;
+  await rpc('clear_actual_wood_usage', { p_token: SESSION.token, p_date: date });
+  loadActualUseTable();
 }
 
 /* ============================================================
