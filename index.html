@@ -1225,21 +1225,45 @@ async function switchSettingsTab(t){
         <button class="btn btn-secondary hide" id="ns-cancel-btn" onclick="cancelEditSupplier()">ยกเลิก</button>
       </div></div>`;
   } else if(t==='users'){
+    const rows = await rpc('get_users', { p_token: SESSION.token });
+    window._usersById = {}; (rows||[]).forEach(u=>window._usersById[u.id]=u);
+    const roleLabel = {ENG:'วิศวกรรม', PUR:'จัดซื้อ', STO:'สโตร์', PRD:'ผลิต', ADMIN:'ผู้ดูแลระบบ'};
     body.innerHTML = `<div class="card">
-      <h3 class="card-title" style="margin-top:0;">เพิ่มผู้ใช้งาน (รหัสผ่านตั้งต้น 123456789 บังคับเปลี่ยนตอน login ครั้งแรก)</h3>
+      <div class="card-hd"><h3 class="card-title" style="margin:0;">รายชื่อผู้ใช้งาน</h3>
+        <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('user-list-table','ผู้ใช้งาน')">📥 Export Excel</button></div>
+      <table id="user-list-table"><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>บทบาท</th><th>สถานะรหัสผ่าน</th><th>ใช้งาน</th><th></th></tr></thead>
+      <tbody>${(rows||[]).map(u=>`<tr${!u.is_active?' style="opacity:.5;"':''}>
+        <td class="mono">${u.username}</td><td>${u.full_name||'-'}</td><td>${u.department||'-'}</td>
+        <td><span class="role-badge role-${u.role}">${u.role}</span> ${roleLabel[u.role]||''}</td>
+        <td>${u.first_login?'<span class="badge badge-warn">ยังไม่เปลี่ยนรหัสผ่าน</span>':'<span class="badge badge-ok">ตั้งรหัสแล้ว</span>'}</td>
+        <td>${u.is_active?'✅':'⛔ ปิดใช้งาน'}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-secondary btn-sm" onclick="editUserForm('${u.id}')">แก้ไข</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetUserPw('${u.username}')">รีเซ็ตรหัส</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleUserActive('${u.id}', ${!u.is_active})">${u.is_active?'ปิดใช้งาน':'เปิดใช้งาน'}</button>
+        </td></tr>`).join('') || '<tr><td colspan="7">ยังไม่มีผู้ใช้งาน</td></tr>'}</tbody></table>
+
+      <h3 class="card-title section-gap" id="nu-form-title">เพิ่มผู้ใช้งานใหม่</h3>
+      <div class="hint" style="margin-bottom:10px;">Username = รหัสพนักงาน โดยอัตโนมัติ — รหัสผ่านตั้งต้น 123456789 บังคับเปลี่ยนตอน login ครั้งแรก</div>
+      <div id="nu-msg"></div>
       <div class="toolbar">
-        <div class="field"><label>Username</label><input id="nu-username"></div>
-        <div class="field"><label>Role</label><select id="nu-role"><option>ENG</option><option>PUR</option><option>STO</option><option>PRD</option><option>ADMIN</option></select></div>
+        <input type="hidden" id="nu-id">
+        <div class="field"><label>รหัสพนักงาน (Username)</label><input id="nu-username"></div>
+        <div class="field"><label>ชื่อ-สกุล</label><input id="nu-fullname"></div>
         <div class="field"><label>แผนก</label><input id="nu-dept"></div>
-        <button class="btn btn-primary" onclick="addUser()">เพิ่มผู้ใช้</button>
+        <div class="field"><label>บทบาท</label><select id="nu-role"><option value="ENG">ENG — วิศวกรรม</option><option value="PUR">PUR — จัดซื้อ</option><option value="STO">STO — สโตร์</option><option value="PRD">PRD — ผลิต</option><option value="ADMIN">ADMIN — ผู้ดูแลระบบ</option></select></div>
+        <button class="btn btn-primary" id="nu-submit-btn" onclick="saveUser()">เพิ่มผู้ใช้</button>
+        <button class="btn btn-secondary hide" id="nu-cancel-btn" onclick="cancelEditUser()">ยกเลิก</button>
       </div>
-      <div class="section-gap">
-        <h3 class="card-title">รีเซ็ตรหัสผ่าน</h3>
-        <div class="toolbar">
-          <div class="field"><label>Username</label><input id="rp-username"></div>
-          <button class="btn btn-secondary" onclick="resetUserPw()">รีเซ็ตเป็น 123456789</button>
-        </div>
-      </div></div>`;
+
+      <button class="btn btn-secondary btn-sm" style="margin-top:14px;" onclick="toggleZone('nu-paste-zone')">📋 วางจาก Google Sheets</button>
+      <div class="paste-zone hide" id="nu-paste-zone">
+        <label>รหัสพนักงาน [Tab] ชื่อ-สกุล [Tab] แผนก [Tab] บทบาท (ENG/PUR/STO/PRD/ADMIN หรือชื่อแผนกภาษาไทยก็ได้)</label>
+        <textarea id="nu-paste" rows="5" placeholder="เช่น&#10;EMP1001&#9;สมชาย ใจดี&#9;วิศวกรรม&#9;ENG&#10;EMP1002&#9;สมหญิง รักงาน&#9;จัดซื้อ&#9;PUR"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewUserPaste()">ดูตัวอย่าง</button>
+      </div>
+      <div id="nu-preview"></div>
+      </div>`;
   }
 }
 async function saveConfig(key){
@@ -1283,21 +1307,104 @@ function editSupplierForm(id){
 function cancelEditSupplier(){
   switchSettingsTab('suppliers');
 }
-async function addUser(){
-  const msg = document.getElementById('nu-msg'); if(msg) msg.innerHTML='';
-  try{
-    await rpc('manage_user', { p_token: SESSION.token, p_id: null,
-      p_username: document.getElementById('nu-username').value, p_role: document.getElementById('nu-role').value,
-      p_department: document.getElementById('nu-dept').value, p_supplier_id: null });
-    alert('เพิ่มผู้ใช้แล้ว (รหัสผ่านตั้งต้น 123456789)');
-  }catch(e){ alert('เพิ่มผู้ใช้ไม่สำเร็จ: ' + e.message); }
+
+/* ---------- Users: add/edit/list/paste-import ---------- */
+const ROLE_ALIAS = {
+  'ENG':'ENG','PUR':'PUR','STO':'STO','PRD':'PRD','ADMIN':'ADMIN',
+  'วิศวกรรม':'ENG','จัดซื้อ':'PUR','สโตร์':'STO','ผลิต':'PRD','ผู้ดูแลระบบ':'ADMIN','แอดมิน':'ADMIN'
+};
+function normalizeRole(v){
+  const key = (v||'').trim();
+  return ROLE_ALIAS[key] || ROLE_ALIAS[key.toUpperCase()] || key.toUpperCase();
 }
-async function resetUserPw(){
+async function saveUser(){
+  const msg = document.getElementById('nu-msg');
+  const id = document.getElementById('nu-submit-btn').dataset.editId || null;
+  const username = document.getElementById('nu-username').value.trim();
+  const role = normalizeRole(document.getElementById('nu-role').value);
+  if(!username){ msg.innerHTML = '<div class="err-msg">กรุณากรอกรหัสพนักงาน</div>'; return; }
+  msg.innerHTML = '';
   try{
-    await rpc('reset_user_password', { p_token: SESSION.token, p_username: document.getElementById('rp-username').value });
-    alert('รีเซ็ตรหัสผ่านเป็น 123456789 แล้ว');
+    await rpc('manage_user', { p_token: SESSION.token, p_id: id,
+      p_username: username, p_full_name: document.getElementById('nu-fullname').value,
+      p_department: document.getElementById('nu-dept').value, p_role: role, p_supplier_id: null });
+    msg.innerHTML = `<div class="ok-msg">✅ บันทึกแล้ว${id?'':' — รหัสผ่านตั้งต้น 123456789'}</div>`;
+    switchSettingsTab('users');
+  }catch(e){
+    const friendly = (e.message.includes('duplicate')||e.message.includes('unique')) ? 'รหัสพนักงานนี้มีอยู่แล้วในระบบ'
+      : e.message.includes('INVALID_ROLE') ? 'บทบาทไม่ถูกต้อง ต้องเป็น ENG/PUR/STO/PRD/ADMIN'
+      : e.message.includes('MISSING_EMPLOYEE_CODE') ? 'กรุณากรอกรหัสพนักงาน' : e.message;
+    msg.innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${friendly}</div>`;
+  }
+}
+function editUserForm(id){
+  const u = window._usersById[id];
+  if(!u) return;
+  document.getElementById('nu-form-title').textContent = 'แก้ไขผู้ใช้งาน: ' + u.username;
+  document.getElementById('nu-username').value = u.username || '';
+  document.getElementById('nu-username').disabled = true;
+  document.getElementById('nu-fullname').value = u.full_name || '';
+  document.getElementById('nu-dept').value = u.department || '';
+  document.getElementById('nu-role').value = u.role || 'ENG';
+  const btn = document.getElementById('nu-submit-btn');
+  btn.textContent = 'บันทึกการแก้ไข';
+  btn.dataset.editId = id;
+  document.getElementById('nu-cancel-btn').classList.remove('hide');
+  document.getElementById('nu-username').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelEditUser(){
+  switchSettingsTab('users');
+}
+async function toggleUserActive(id, active){
+  await rpc('set_user_active', { p_token: SESSION.token, p_id: id, p_active: active });
+  switchSettingsTab('users');
+}
+function previewUserPaste(){
+  document.getElementById('nu-msg').innerHTML='';
+  const lines = document.getElementById('nu-paste').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  const rows = [];
+  lines.forEach(line=>{
+    const parts = (line.includes('\t') ? line.split('\t') : line.split(',')).map(s=>s.trim());
+    if(parts.length < 4) return;
+    rows.push({ code:parts[0], name:parts[1], dept:parts[2], role:normalizeRole(parts[3]) });
+  });
+  const box = document.getElementById('nu-preview');
+  if(!rows.length){ box.innerHTML = '<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ต้องมีครบ 4 คอลัมน์ (รหัส/ชื่อ/แผนก/บทบาท) คั่นด้วย Tab</div>'; return; }
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>บทบาท</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td><input type="text" id="nup-code-${i}" value="${r.code}"></td><td><input type="text" id="nup-name-${i}" value="${r.name}"></td><td><input type="text" id="nup-dept-${i}" value="${r.dept}"></td>
+    <td><select id="nup-role-${i}"><option value="ENG"${r.role==='ENG'?' selected':''}>ENG</option><option value="PUR"${r.role==='PUR'?' selected':''}>PUR</option><option value="STO"${r.role==='STO'?' selected':''}>STO</option><option value="PRD"${r.role==='PRD'?' selected':''}>PRD</option><option value="ADMIN"${r.role==='ADMIN'?' selected':''}>ADMIN</option></select></td></tr>`).join('')}</tbody></table>
+    <button class="btn btn-primary btn-sm" id="nu-import-btn" style="margin-top:10px;" onclick="confirmUserImport(${rows.length})">ยืนยันนำเข้า ${rows.length} คน</button>
+    <div id="nu-import-status" class="hint"></div></div>`;
+}
+async function confirmUserImport(n){
+  const btn = document.getElementById('nu-import-btn'); const status = document.getElementById('nu-import-status');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
+  let ok=0, failed=[];
+  for(let i=0;i<n;i++){
+    const code = document.getElementById('nup-code-'+i).value.trim();
+    const name = document.getElementById('nup-name-'+i).value.trim();
+    const dept = document.getElementById('nup-dept-'+i).value.trim();
+    const role = document.getElementById('nup-role-'+i).value;
+    status.textContent = `กำลังบันทึก ${i+1}/${n} (${code})...`;
+    try{
+      await rpc('manage_user', { p_token: SESSION.token, p_id: null, p_username: code, p_full_name: name, p_department: dept, p_role: role, p_supplier_id: null });
+      ok++;
+    }catch(e){ failed.push(code+': '+e.message); }
+  }
+  document.getElementById('nu-preview').innerHTML = ok===n
+    ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} คน (รหัสผ่านตั้งต้น 123456789 ทุกคน)</div>`
+    : `<div class="err-msg">นำเข้าสำเร็จ ${ok}/${n} คน — ล้มเหลว:<br>${failed.join('<br>')}</div>`;
+  document.getElementById('nu-paste').value='';
+  switchSettingsTab('users');
+}
+async function resetUserPw(username){
+  if(!confirm(`ยืนยันรีเซ็ตรหัสผ่านของ ${username} เป็น 123456789?`)) return;
+  try{
+    await rpc('reset_user_password', { p_token: SESSION.token, p_username: username });
+    alert('รีเซ็ตรหัสผ่านเป็น 123456789 แล้ว — ผู้ใช้จะถูกบังคับตั้งรหัสใหม่ตอน login ครั้งถัดไป');
   }catch(e){ alert('รีเซ็ตไม่สำเร็จ: ' + e.message); }
 }
+
 
 /* ============================================================
    DELETE (range + per-row)
