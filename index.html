@@ -270,6 +270,7 @@ const NAV = [
   {hash:'#chicken', label:'แผนไก่ / ขนไก่', icon:'🐔', roles:['ENG','ADMIN']},
   {hash:'#actualuse', label:'ใช้ไม้จริง', icon:'🔥', roles:['STO','ENG','ADMIN']},
   {hash:'#purchase', label:'แผนสั่งซื้อ', icon:'🛒', roles:['PUR','ENG','ADMIN']},
+  {hash:'#reconcile', label:'เทียบแผน-รับจริง', icon:'⚖️', roles:['PUR','ENG','ADMIN']},
   {hash:'#receipt', label:'บันทึกรับไม้', icon:'📥', roles:['STO','ENG','ADMIN']},
   {hash:'#steam', label:'บันทึกไอน้ำ', icon:'💨', roles:['PRD','ENG','ADMIN']},
   {hash:'#supplier', label:'กำหนดส่งของฉัน', icon:'🚚', roles:['SUP']},
@@ -290,7 +291,7 @@ function router(){
   document.querySelectorAll('#sidebar a').forEach(a=>a.classList.toggle('active', a.getAttribute('data-hash')===h));
   const page = h.replace('#','');
   const renderFn = { dashboard:renderDashboard, inventory:renderInventory, chicken:renderChicken,
-    actualuse:renderActualUse, purchase:renderPurchase, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
+    actualuse:renderActualUse, purchase:renderPurchase, reconcile:renderReconcile, receipt:renderReceipt, steam:renderSteam, supplier:renderSupplierView,
     reports:renderReports, settings:renderSettings }[page];
   document.getElementById('content').innerHTML = '<div class="loading-box"><div class="spin"></div>กำลังโหลด...</div>';
   if(renderFn) safeRender(renderFn);
@@ -385,9 +386,10 @@ function stockLevelBadge(pct){
 ============================================================ */
 async function renderDashboard(){
   const from = daysAgoISO(29), to = todayISO();
-  const [data, cfg] = await Promise.all([
+  const [data, cfg, forecast] = await Promise.all([
     rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
-    getConfigMap()
+    getConfigMap(),
+    rpc('get_stock_forecast', { p_token: SESSION.token, p_days_ahead: 7 }).catch(()=>[])
   ]);
   const inv = data.inventory || [], chicken = data.chicken_plan || [], steam = data.steam_usage || [];
   const maxStock = cfg.MAX_STOCK_KG || 400000;
@@ -409,6 +411,10 @@ async function renderDashboard(){
   const totalWood = chicken.reduce((s,c)=>s+(c.calc_wood_kg||0),0);
   const totalReceived = inv.reduce((s,i)=>s+(i.received_kg||0),0);
 
+  const srcLabel = {actual:'จริง', planned:'แผน', none:'ไม่มีข้อมูล', estimate:'ประมาณการ', avg_fallback:'ค่าเฉลี่ย'};
+  const srcCls = {actual:'badge-ok', planned:'badge-info', none:'badge-err', estimate:'badge-info', avg_fallback:'badge-warn'};
+  const anyLowFlag = forecast.some(f=>f.low_stock_flag);
+
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">ภาพรวม</h2>
     <div class="grid grid-4">
@@ -418,13 +424,23 @@ async function renderDashboard(){
       <div class="card stat purp"><div class="label">⚡ SEC เฉลี่ย</div><div class="value">${avgSEC>0?fmt(avgSEC,3):'—'}<span class="unit">kg/kg</span></div><div class="sub">กก.ไอน้ำ / กก.ไก่</div></div>
     </div>
     <div class="card section-gap">
-      <div class="card-hd"><h3 class="card-title">ระดับสต็อกไม้สับ</h3><span class="badge ${lvl.cls}">${lvl.txt}</span></div>
+      <div class="card-hd"><h3 class="card-title">ระดับสต็อกไม้สับ (ข้อมูลจริง)</h3><span class="badge ${lvl.cls}">${lvl.txt}</span></div>
       <div class="stock-bar"><div class="stock-fill ${stockLevelClass(pct)}" style="width:${pct}%"></div></div>
       <div class="stock-marks"><span>0 ตัน</span><span style="color:var(--warn);">⚠️ ขั้นต่ำ ${cfg.MIN_STOCK_DAYS||3} วัน</span><span>${fmt(maxStock/1000,0)} ตัน</span></div>
     </div>
     <div class="grid grid-2 section-gap">
       <div class="card"><h3 class="card-title" style="margin-top:0;">แนวโน้มสต็อก 30 วัน</h3><div class="chart-wrap"><canvas id="stockChart"></canvas></div></div>
       <div class="card"><h3 class="card-title" style="margin-top:0;">SEC รายวัน</h3><div class="chart-wrap"><canvas id="secChart"></canvas></div></div>
+    </div>
+    <div class="card section-gap">
+      <div class="card-hd"><h3 class="card-title">📅 พยากรณ์สต็อก 7 วันข้างหน้า</h3>${anyLowFlag?'<span class="badge badge-err">⚠️ มีวันที่เสี่ยงขาดสต็อก</span>':'<span class="badge badge-ok">ปกติ</span>'}</div>
+      <div class="hint" style="margin-bottom:12px;">ใช้ยอดรับ/ยอดใช้จริงถ้ามีการบันทึกแล้ว ถ้ายังไม่มีจะใช้แผนสั่งซื้อ/ค่าประมาณการแทน (ดูคอลัมน์ที่มาประกอบ) — เป็นการพยากรณ์ ไม่ใช่ข้อมูลยืนยันจริง</div>
+      <table><thead><tr><th>วันที่</th><th>ยกมา</th><th>รับ (คาด)</th><th>ที่มา</th><th>ใช้ (คาด)</th><th>ที่มา</th><th>คงเหลือ (คาด)</th></tr></thead>
+      <tbody>${forecast.map(f=>`<tr${f.low_stock_flag?' style="background:rgba(239,68,68,.08);"':''}>
+        <td>${f.fc_date}${f.fc_date===todayISO()?' <span style="color:var(--amber);">(วันนี้)</span>':''}</td>
+        <td>${fmt(f.opening_kg)}</td><td>${fmt(f.expected_received_kg)}</td><td><span class="badge ${srcCls[f.received_source]}">${srcLabel[f.received_source]}</span></td>
+        <td>${fmt(f.expected_used_kg)}</td><td><span class="badge ${srcCls[f.used_source]}">${srcLabel[f.used_source]}</span></td>
+        <td style="${f.low_stock_flag?'color:var(--red);font-weight:700;':'color:var(--amber);font-weight:700;'}">${fmt(f.projected_closing_kg)}${f.low_stock_flag?' ⚠️':''}</td></tr>`).join('') || '<tr><td colspan="7">ไม่มีข้อมูลพยากรณ์</td></tr>'}</tbody></table>
     </div>`;
 
   new Chart(document.getElementById('stockChart'), {
@@ -698,6 +714,46 @@ async function clearActualUse(date){
   if(!confirm(`ยืนยันล้างยอดใช้จริงของวันที่ ${date}? ระบบจะกลับไปใช้ค่าประมาณการตัดสต็อกแทน`)) return;
   await rpc('clear_actual_wood_usage', { p_token: SESSION.token, p_date: date });
   loadActualUseTable();
+}
+
+/* ============================================================
+   RECONCILE — เทียบแผนสั่งซื้อ vs รับจริง
+============================================================ */
+async function renderReconcile(){
+  const cfg = await getConfigMap();
+  document.getElementById('content').innerHTML = `
+    <h2 class="page-title">เทียบแผนสั่งซื้อ vs รับจริง</h2>
+    <div class="toolbar">
+      <div class="field"><label>จากวันที่</label><input type="date" id="rc-from" value="${daysAgoISO(13)}"></div>
+      <div class="field"><label>ถึงวันที่</label><input type="date" id="rc-to" value="${todayISO()}"></div>
+      <button class="btn btn-primary" onclick="loadReconcile()">ค้นหา</button>
+    </div>
+    <div class="hint" style="margin-bottom:14px;">
+      🟢 ≥ ${cfg.RECON_GOOD_PCT||100}% ตรงตามแผน &nbsp;|&nbsp;
+      🟡 ${cfg.RECON_WARN_PCT||90}–${(cfg.RECON_GOOD_PCT||100)-0.1}% ใกล้เคียง &nbsp;|&nbsp;
+      🟠 &lt; ${cfg.RECON_WARN_PCT||90}% ขาดส่งมาก &nbsp;|&nbsp;
+      ⚪ วางแผนไว้แต่ยังไม่มารับ &nbsp;
+      <span style="float:right;">ปรับเกณฑ์ได้ที่ ตั้งค่าระบบ → สูตรคำนวณ (RECON_GOOD_PCT / RECON_WARN_PCT)</span>
+    </div>
+    <div class="card"><table id="rc-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>แผน (กก.)</th><th>รับจริง (กก.)</th><th>ส่วนต่าง</th><th>%</th><th>สถานะ</th></tr></thead><tbody></tbody></table></div>`;
+  loadReconcile();
+}
+async function loadReconcile(){
+  const from = document.getElementById('rc-from').value, to = document.getElementById('rc-to').value;
+  const cfg = await getConfigMap();
+  const goodPct = cfg.RECON_GOOD_PCT || 100, warnPct = cfg.RECON_WARN_PCT || 90;
+  const rows = await rpc('get_purchase_reconciliation', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  document.querySelector('#rc-table tbody').innerHTML = (rows||[]).map(r=>{
+    let badge;
+    if(r.planned_kg > 0 && r.received_kg === 0) badge = '<span class="badge badge-info">⚪ ยังไม่มารับ</span>';
+    else if(r.pct == null) badge = '<span class="badge badge-info">⚪ ไม่มีแผน (รับนอกแผน)</span>';
+    else if(r.pct >= goodPct) badge = '<span class="badge badge-ok">🟢 ตรงตามแผน</span>';
+    else if(r.pct >= warnPct) badge = '<span class="badge badge-warn">🟡 ใกล้เคียง</span>';
+    else badge = '<span class="badge badge-err">🟠 ขาดส่งมาก</span>';
+    return `<tr><td>${r.the_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.planned_kg)}</td><td>${fmt(r.received_kg)}</td>
+    <td style="${r.diff_kg<0?'color:var(--red);':r.diff_kg>0?'color:var(--blue);':''}">${r.diff_kg>0?'+':''}${fmt(r.diff_kg)}</td>
+    <td>${r.pct==null?'-':fmt(r.pct,1)+'%'}</td><td>${badge}</td></tr>`;
+  }).join('') || '<tr><td colspan="7">ไม่มีข้อมูลในช่วงนี้ (ไม่มีทั้งแผนและรับจริง)</td></tr>';
 }
 
 /* ============================================================
