@@ -996,18 +996,25 @@ async function loadReceiptTable(){
 ============================================================ */
 async function renderSteam(){
   document.getElementById('content').innerHTML = `
-    <h2 class="page-title">บันทึกไอน้ำรายวัน</h2>
+    <h2 class="page-title">บันทึกไอน้ำรายวัน (3 ระบบ)</h2>
     <div class="card">
+      <div class="hint" style="margin-bottom:12px;">
+        <b>SEC SRN</b> = ไอน้ำ SRN ÷ (ขนไก่+กระดูก+ขนไก่ที่ซื้อมา) &nbsp;|&nbsp;
+        <b>SEC SLH</b> = ไอน้ำ SLH ÷ น้ำหนักไก่เข้า &nbsp;|&nbsp;
+        <b>SEC Protein</b> = ไอน้ำ Protein ÷ ไส้ไก่ (4.5% ของไก่)
+      </div>
       <div class="toolbar">
         <div class="field"><label>วันที่</label><input type="date" id="st-date" value="${todayISO()}"></div>
-        <div class="field"><label>ปริมาณไอน้ำ (กก.)</label><input type="number" id="st-kg"></div>
+        <div class="field"><label>ไอน้ำ SRN (กก.)</label><input type="number" id="st-srn"></div>
+        <div class="field"><label>ไอน้ำ SLH (กก.)</label><input type="number" id="st-slh"></div>
+        <div class="field"><label>ไอน้ำ Protein Kinsun (กก.)</label><input type="number" id="st-protein"></div>
         <button class="btn btn-primary" onclick="saveSteam()">บันทึก</button>
       </div>
       <div id="st-result" class="hint"></div>
       <button class="btn btn-secondary btn-sm" onclick="toggleZone('st-paste-zone')">📋 วางจาก Google Sheets</button>
       <div class="paste-zone hide" id="st-paste-zone">
-        <label>วันที่ [Tab] ไอน้ำ กก.</label>
-        <textarea id="st-paste" rows="5" placeholder="เช่น 26/4/2026&#9;85000"></textarea>
+        <label>วันที่ [Tab] ไอน้ำ SRN [Tab] ไอน้ำ SLH [Tab] ไอน้ำ Protein (กก. ทั้งหมด)</label>
+        <textarea id="st-paste" rows="5" placeholder="เช่น 26/4/2026&#9;35000&#9;40000&#9;12000"></textarea>
         <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewSteamPaste()">ดูตัวอย่าง</button>
       </div>
       <div id="st-preview"></div>
@@ -1020,24 +1027,30 @@ async function renderSteam(){
         <button class="btn btn-secondary" onclick="exportTableToExcel('st-table','บันทึกไอน้ำ')">📥 Export Excel</button>
         <button class="btn btn-danger" onclick="deleteRange('steam_usage','st-from','st-to')">ลบทั้งช่วง</button>
       </div>
-      <table id="st-table"><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th><th>ไก่ (กก.)</th><th>SEC (kg/kg)</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="card" style="overflow-x:auto;padding:0;">
+      <table id="st-table"><thead><tr>
+        <th>วันที่</th><th>SRN (กก.)</th><th>SLH (กก.)</th><th>Protein (กก.)</th><th>รวม (กก.)</th>
+        <th>ไก่ (กก.)</th><th>SEC SRN</th><th>SEC SLH</th><th>SEC Protein</th><th>บันทึกโดย</th><th></th>
+      </tr></thead><tbody></tbody></table></div>
     </div>`;
   loadSteamTable();
 }
 async function saveSteam(){
   const date = document.getElementById('st-date').value;
-  const kg = parseFloat(document.getElementById('st-kg').value || 0);
-  await rpc('save_steam_usage', { p_token: SESSION.token, p_date: date, p_steam_kg: kg });
-  document.getElementById('st-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว</span>`;
+  const srn = parseFloat(document.getElementById('st-srn').value || 0);
+  const slh = parseFloat(document.getElementById('st-slh').value || 0);
+  const protein = parseFloat(document.getElementById('st-protein').value || 0);
+  const res = await rpc('save_steam_usage_detail', { p_token: SESSION.token, p_date: date, p_srn_kg: srn, p_slh_kg: slh, p_protein_kg: protein });
+  document.getElementById('st-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว รวม ${fmt(res.total_steam_kg)} กก.</span>`;
   loadSteamTable();
 }
 function previewSteamPaste(){
   document.getElementById('st-result').innerHTML='';
-  const rows = parsePastedSheet(document.getElementById('st-paste').value, 2);
+  const rows = parsePastedSheet(document.getElementById('st-paste').value, 4);
   const box = document.getElementById('st-preview');
   if(!rows.length){ box.innerHTML='<div class="err-msg">ไม่พบข้อมูลที่แปลงได้ — ตรวจว่าวางแบบ Tab คั่นคอลัมน์</div>'; return; }
-  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว:</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>ไอน้ำ (กก.)</th></tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="stp-${i}" value="${r.value}"></td></tr>`).join('')}</tbody></table>
+  box.innerHTML = `<div class="hint">พบ ${rows.length} แถว (คอลัมน์: SRN / SLH / Protein):</div><div class="preview-table"><table><thead><tr><th>วันที่</th><th>SRN</th><th>SLH</th><th>Protein</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td>${r.date}</td><td><input type="number" id="stp-${i}" value="${r.value}"></td><td><input type="number" id="stps-${i}" value="${r.extra||0}"></td><td><input type="number" id="stpp-${i}" value="${r.extra2||0}"></td></tr>`).join('')}</tbody></table>
     <button class="btn btn-primary btn-sm" id="st-import-btn" style="margin-top:10px;" onclick="confirmSteamImport(${rows.length})">ยืนยันนำเข้า ${rows.length} แถว</button>
     <div id="st-import-status" class="hint"></div></div>`;
   window._stPasteRows = rows;
@@ -1049,8 +1062,10 @@ async function confirmSteamImport(n){
   for(let i=0;i<n;i++){
     const row = window._stPasteRows[i];
     status.textContent = `กำลังบันทึก ${i+1}/${n} (${row.date})...`;
-    const val = parseFloat(document.getElementById('stp-'+i).value || 0);
-    try{ await rpc('save_steam_usage', { p_token: SESSION.token, p_date: row.date, p_steam_kg: val }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
+    const srn = parseFloat(document.getElementById('stp-'+i).value || 0);
+    const slh = parseFloat(document.getElementById('stps-'+i).value || 0);
+    const protein = parseFloat(document.getElementById('stpp-'+i).value || 0);
+    try{ await rpc('save_steam_usage_detail', { p_token: SESSION.token, p_date: row.date, p_srn_kg: srn, p_slh_kg: slh, p_protein_kg: protein }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
   }
   document.getElementById('st-preview').innerHTML = ok===n
     ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
@@ -1060,18 +1075,31 @@ async function confirmSteamImport(n){
 }
 async function loadSteamTable(){
   const from = document.getElementById('st-from').value, to = document.getElementById('st-to').value;
-  const [steamRows, ck] = await Promise.all([
+  const [steamRows, ck, cfg] = await Promise.all([
     rpc('get_steam_usage', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
-    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to })
+    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    getConfigMap()
   ]);
-  const chickenMap = {}; (ck.chicken_plan||[]).forEach(c=>chickenMap[c.plan_date]=c.planned_chicken_kg);
+  const pctFeatherBone = cfg.PCT_FEATHER_BONE ?? 0.21575, pctIntestine = cfg.PCT_INTESTINE ?? 0.045;
+  const chickenMap = {}; (ck.chicken_plan||[]).forEach(c=>chickenMap[c.plan_date]={chicken:c.planned_chicken_kg, feathers:c.purchased_feathers_kg||0});
+
   document.querySelector('#st-table tbody').innerHTML = (steamRows||[]).map(r=>{
-    const chk = chickenMap[r.usage_date];
-    const sec = (chk && r.steam_kg) ? (r.steam_kg/chk) : null;
-    return `<tr><td>${r.usage_date}</td><td>${fmt(r.steam_kg)}</td><td>${chk?fmt(chk):'-'}</td>
-    <td style="color:var(--purp);">${sec?fmt(sec,3):'-'}</td><td>${r.recorded_by||''}</td>
+    const cp = chickenMap[r.usage_date];
+    const chickenKg = cp ? cp.chicken : null;
+    const srnBase = cp ? (cp.chicken*pctFeatherBone + cp.feathers) : null;
+    const slhBase = chickenKg;
+    const proteinBase = cp ? (cp.chicken*pctIntestine) : null;
+    const secSrn = (srnBase && r.steam_srn_kg) ? r.steam_srn_kg/srnBase : null;
+    const secSlh = (slhBase && r.steam_slh_kg) ? r.steam_slh_kg/slhBase : null;
+    const secProtein = (proteinBase && r.steam_protein_kg) ? r.steam_protein_kg/proteinBase : null;
+    return `<tr><td>${r.usage_date}</td><td>${fmt(r.steam_srn_kg)}</td><td>${fmt(r.steam_slh_kg)}</td><td>${fmt(r.steam_protein_kg)}</td>
+    <td style="font-weight:700;">${fmt(r.steam_kg)}</td><td>${chickenKg?fmt(chickenKg):'-'}</td>
+    <td style="color:var(--purp);">${secSrn?fmt(secSrn,3):'-'}</td>
+    <td style="color:var(--purp);">${secSlh?fmt(secSlh,3):'-'}</td>
+    <td style="color:var(--purp);">${secProtein?fmt(secProtein,3):'-'}</td>
+    <td>${r.recorded_by||''}</td>
     <td><button class="row-del" onclick="deleteRow('steam_usage','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`;
-  }).join('') || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
+  }).join('') || '<tr><td colspan="11">ไม่มีข้อมูล</td></tr>';
 }
 
 /* ============================================================
