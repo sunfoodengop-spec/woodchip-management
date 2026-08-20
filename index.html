@@ -664,14 +664,26 @@ async function confirmChickenImport(t, n){
 async function loadChickenTable(){
   const from = document.getElementById('ck-from').value, to = document.getElementById('ck-to').value;
   const rows = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  window._chickenByDate = {}; (rows.chicken_plan||[]).forEach(r=>window._chickenByDate[r.plan_date]=r);
   document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>{
     const hasActual = r.actual_wood_kg!=null;
     return `<tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
     <td>${fmt(r.calc_wood_kg)}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
     <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
     <td>${r.recorded_by||''}</td>
-    <td>${SESSION.role!=='PRD'?`<button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button>`:''}</td></tr>`;
+    <td style="white-space:nowrap;">
+      <button class="row-del" onclick="editChickenRow('${r.plan_date}')" title="แก้ไขแถวนี้">✏️</button>
+      ${SESSION.role!=='PRD'?`<button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button>`:''}
+    </td></tr>`;
   }).join('') || '<tr><td colspan="8">ไม่มีข้อมูล</td></tr>';
+}
+function editChickenRow(date){
+  const r = window._chickenByDate[date];
+  if(!r) return;
+  const activeTab = document.querySelector('#content .tab.active')?.dataset.t || 'chicken';
+  document.getElementById('ck-date').value = date;
+  document.getElementById('ck-value').value = activeTab==='chicken' ? r.planned_chicken_kg : r.purchased_feathers_kg;
+  document.getElementById('ck-date').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
 /* ============================================================
@@ -745,6 +757,7 @@ async function confirmActualUseImport(n){
 async function loadActualUseTable(){
   const from = document.getElementById('au-from').value, to = document.getElementById('au-to').value;
   const rows = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  window._chickenByDate = {}; (rows.chicken_plan||[]).forEach(r=>window._chickenByDate[r.plan_date]=r);
   document.querySelector('#au-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>{
     const hasActual = r.actual_wood_kg!=null;
     const diff = hasActual ? r.actual_wood_kg - r.calc_wood_kg : null;
@@ -753,8 +766,17 @@ async function loadActualUseTable(){
     <td style="${diff==null?'':diff>0?'color:var(--red);':'color:var(--green);'}">${diff==null?'-':(diff>0?'+':'')+fmt(diff)}</td>
     <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
     <td>${r.actual_recorded_by||r.recorded_by||''}</td>
-    <td>${hasActual?`<button class="row-del" onclick="clearActualUse('${r.plan_date}')" title="ล้างยอดจริง กลับไปใช้ประมาณการ">↺</button>`:''}</td></tr>`;
+    <td style="white-space:nowrap;">
+      <button class="row-del" onclick="editActualUseRow('${r.plan_date}')" title="แก้ไขแถวนี้">✏️</button>
+      ${hasActual?`<button class="row-del" onclick="clearActualUse('${r.plan_date}')" title="ล้างยอดจริง กลับไปใช้ประมาณการ">↺</button>`:''}
+    </td></tr>`;
   }).join('') || '<tr><td colspan="7">ไม่มีข้อมูล</td></tr>';
+}
+function editActualUseRow(date){
+  const r = window._chickenByDate ? window._chickenByDate[date] : null;
+  document.getElementById('au-date').value = date;
+  if(r && r.actual_wood_kg!=null) document.getElementById('au-kg').value = r.actual_wood_kg;
+  document.getElementById('au-date').scrollIntoView({behavior:'smooth', block:'center'});
 }
 async function clearActualUse(date){
   if(!confirm(`ยืนยันล้างยอดใช้จริงของวันที่ ${date}? ระบบจะกลับไปใช้ค่าประมาณการตัดสต็อกแทน`)) return;
@@ -896,11 +918,23 @@ async function confirmPurchaseImport(n){
 async function loadPurchaseTable(){
   const from = document.getElementById('pp-from').value, to = document.getElementById('pp-to').value;
   const rows = await rpc('get_purchase_plan', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  window._purchaseById = {}; (rows||[]).forEach(r=>window._purchaseById[r.id]=r);
   document.querySelector('#pp-table tbody').innerHTML = (rows||[]).map(r=>`
     <tr><td>${r.plan_date}</td><td>${r.supplier_name||''}</td><td>${fmt(r.planned_trailers)}</td>
     <td>${fmt(r.planned_kg)}</td>
-    <td><button class="row-del" onclick="deleteRow('purchase_plan','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
+    <td style="white-space:nowrap;">
+      <button class="row-del" onclick="editPurchaseRow('${r.id}')" title="แก้ไขแถวนี้">✏️</button>
+      <button class="row-del" onclick="deleteRow('purchase_plan','${r.id}')" title="ลบแถวนี้">✕</button>
+    </td></tr>`).join('')
     || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>';
+}
+function editPurchaseRow(id){
+  const r = window._purchaseById[id];
+  if(!r) return;
+  document.getElementById('pp-date').value = r.plan_date;
+  document.getElementById('pp-supplier').value = r.supplier_id;
+  document.getElementById('pp-trailers').value = r.planned_trailers;
+  document.getElementById('pp-date').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
 /* ============================================================
@@ -911,21 +945,23 @@ async function renderReceipt(){
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">บันทึกรับไม้จริง</h2>
     <div class="card">
-      <h3 class="card-title" style="margin-top:0;">บันทึกการรับไม้</h3>
+      <h3 class="card-title" style="margin-top:0;" id="wr-form-title">บันทึกการรับไม้ (บันทึกได้หลายรอบ/วัน)</h3>
       <div class="toolbar">
+        <input type="hidden" id="wr-id">
         <div class="field"><label>วันที่</label><input type="date" id="wr-date" value="${todayISO()}"></div>
         <div class="field"><label>ซัพพลายเออร์</label><select id="wr-supplier">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
         <div class="field"><label>น้ำหนัก (กก.)</label><input type="number" id="wr-kg"></div>
         <div class="field"><label>เลขที่ใบรับ</label><input type="text" id="wr-receiptno"></div>
         <div class="field"><label>หมายเหตุ</label><input type="text" id="wr-remark"></div>
-        <button class="btn btn-primary" onclick="saveWoodReceipt()">บันทึก</button>
+        <button class="btn btn-primary" id="wr-submit-btn" onclick="saveWoodReceipt()">บันทึกเพิ่มรอบใหม่</button>
+        <button class="btn btn-secondary hide" id="wr-cancel-btn" onclick="cancelEditReceipt()">ยกเลิกแก้ไข</button>
       </div>
       <div id="wr-result" class="hint"></div>
       <button class="btn btn-secondary btn-sm" onclick="toggleZone('wr-paste-zone')">📋 วางจาก Google Sheets</button>
       <div class="paste-zone hide" id="wr-paste-zone">
         <label>ซัพพลายเออร์สำหรับนำเข้า</label>
         <select id="wr-paste-supplier" style="margin-bottom:8px;background:var(--navy-2);border:1px solid var(--line);color:var(--ink);padding:6px 8px;border-radius:5px;">${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
-        <label>วันที่ [Tab] น้ำหนัก กก. [Tab] เลขใบชั่ง (ไม่บังคับ) [Tab] หมายเหตุ (ไม่บังคับ)</label>
+        <label>วันที่ [Tab] น้ำหนัก กก. [Tab] เลขใบชั่ง (ไม่บังคับ) [Tab] หมายเหตุ (ไม่บังคับ) — วางหลายเที่ยว/วันเดียวกันได้ปกติ</label>
         <textarea id="wr-paste" rows="5" placeholder="เช่น&#10;26/4/2026&#9;27300&#9;WB-1029&#9;ชื้นเกินสเปค"></textarea>
         <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="previewReceiptPaste()">ดูตัวอย่าง</button>
       </div>
@@ -937,21 +973,49 @@ async function renderReceipt(){
         <div class="field"><label>ถึงวันที่</label><input type="date" id="wr-to" value="${todayISO()}"></div>
         <button class="btn btn-secondary" onclick="loadReceiptTable()">ค้นหา</button>
         <button class="btn btn-secondary" onclick="exportTableToExcel('wr-table','บันทึกรับไม้')">📥 Export Excel</button>
-        <button class="btn btn-danger" onclick="deleteRange('wood_receipt','wr-from','wr-to')">ลบทั้งช่วง</button>
+        ${SESSION.role!=='STO' ? '<button class="btn btn-danger" onclick="deleteRange(\'wood_receipt\',\'wr-from\',\'wr-to\')">ลบทั้งช่วง</button>' : ''}
       </div>
       <table id="wr-table"><thead><tr><th>วันที่</th><th>ซัพพลายเออร์</th><th>กก.</th><th>เลขที่</th><th>หมายเหตุ</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadReceiptTable();
 }
 async function saveWoodReceipt(){
+  const id = document.getElementById('wr-submit-btn').dataset.editId || null;
   const date = document.getElementById('wr-date').value;
   const supplierId = document.getElementById('wr-supplier').value;
   const kg = parseFloat(document.getElementById('wr-kg').value || 0);
   const receiptNo = document.getElementById('wr-receiptno').value;
   const remark = document.getElementById('wr-remark').value;
-  const res = await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_actual_kg: kg, p_receipt_no: receiptNo, p_remark: remark });
-  document.getElementById('wr-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.actual_kg)} กก.</span>`;
-  loadReceiptTable();
+  try{
+    const res = await rpc('save_wood_receipt', { p_token: SESSION.token, p_id: id, p_date: date, p_supplier_id: supplierId, p_actual_kg: kg, p_receipt_no: receiptNo, p_remark: remark });
+    document.getElementById('wr-result').innerHTML = `<span style="color:var(--green);">${id?'แก้ไขแล้ว':'บันทึกแล้ว'} ${fmt(res.actual_kg)} กก.</span>`;
+    cancelEditReceipt();
+    loadReceiptTable();
+  }catch(e){
+    document.getElementById('wr-result').innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message}</div>`;
+  }
+}
+function editReceiptForm(id){
+  const r = window._receiptsById[id];
+  if(!r) return;
+  document.getElementById('wr-form-title').textContent = 'แก้ไขรายการรับไม้';
+  document.getElementById('wr-date').value = r.receipt_date;
+  document.getElementById('wr-supplier').value = r.supplier_id;
+  document.getElementById('wr-kg').value = r.actual_kg;
+  document.getElementById('wr-receiptno').value = r.receipt_no || '';
+  document.getElementById('wr-remark').value = r.remark || '';
+  const btn = document.getElementById('wr-submit-btn');
+  btn.textContent = 'บันทึกการแก้ไข';
+  btn.dataset.editId = id;
+  document.getElementById('wr-cancel-btn').classList.remove('hide');
+  document.getElementById('wr-date').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelEditReceipt(){
+  document.getElementById('wr-form-title').textContent = 'บันทึกการรับไม้ (บันทึกได้หลายรอบ/วัน)';
+  document.getElementById('wr-kg').value=''; document.getElementById('wr-receiptno').value=''; document.getElementById('wr-remark').value='';
+  const btn = document.getElementById('wr-submit-btn');
+  btn.textContent = 'บันทึกเพิ่มรอบใหม่'; delete btn.dataset.editId;
+  document.getElementById('wr-cancel-btn').classList.add('hide');
 }
 function previewReceiptPaste(){
   document.getElementById('wr-result').innerHTML='';
@@ -975,7 +1039,7 @@ async function confirmReceiptImport(n){
     const val = parseFloat(document.getElementById('wrp-'+i).value || 0);
     const rn = document.getElementById('wrpn-'+i).value;
     const rm = document.getElementById('wrpr-'+i).value;
-    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_date: row.date, p_supplier_id: supplierId, p_actual_kg: val, p_receipt_no: rn, p_remark: rm }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
+    try{ await rpc('save_wood_receipt', { p_token: SESSION.token, p_id: null, p_date: row.date, p_supplier_id: supplierId, p_actual_kg: val, p_receipt_no: rn, p_remark: rm }); ok++; }catch(e){ failed.push(row.date+': '+e.message); }
   }
   document.getElementById('wr-preview').innerHTML = ok===n
     ? `<div class="ok-msg">✅ นำเข้าสำเร็จครบทั้ง ${ok} แถว</div>`
@@ -986,10 +1050,14 @@ async function confirmReceiptImport(n){
 async function loadReceiptTable(){
   const from = document.getElementById('wr-from').value, to = document.getElementById('wr-to').value;
   const rows = await rpc('get_wood_receipt', { p_token: SESSION.token, p_date_from: from, p_date_to: to });
+  window._receiptsById = {}; (rows||[]).forEach(r=>window._receiptsById[r.id]=r);
   document.querySelector('#wr-table tbody').innerHTML = (rows||[]).map(r=>`
     <tr><td>${r.receipt_date}</td><td>${r.supplier_name||''}</td>
     <td>${fmt(r.actual_kg)}</td><td>${r.receipt_no||''}</td><td>${r.remark||''}</td>
-    <td><button class="row-del" onclick="deleteRow('wood_receipt','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`).join('')
+    <td style="white-space:nowrap;">
+      <button class="row-del" onclick="editReceiptForm('${r.id}')" title="แก้ไขแถวนี้">✏️</button>
+      <button class="row-del" onclick="deleteRow('wood_receipt','${r.id}')" title="ลบแถวนี้">✕</button>
+    </td></tr>`).join('')
     || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>';
 }
 
@@ -1084,6 +1152,7 @@ async function loadSteamTable(){
   ]);
   const pctFeatherBone = cfg.PCT_FEATHER_BONE ?? 0.21575, pctIntestine = cfg.PCT_INTESTINE ?? 0.045;
   const chickenMap = {}; (ck.chicken_plan||[]).forEach(c=>chickenMap[c.plan_date]={chicken:c.planned_chicken_kg, feathers:c.purchased_feathers_kg||0});
+  window._steamById = {}; (steamRows||[]).forEach(r=>window._steamById[r.id]=r);
 
   document.querySelector('#st-table tbody').innerHTML = (steamRows||[]).map(r=>{
     const cp = chickenMap[r.usage_date];
@@ -1100,8 +1169,20 @@ async function loadSteamTable(){
     <td style="color:var(--purp);">${secSlh?fmt(secSlh,3):'-'}</td>
     <td style="color:var(--purp);">${secProtein?fmt(secProtein,3):'-'}</td>
     <td>${r.recorded_by||''}</td>
-    <td><button class="row-del" onclick="deleteRow('steam_usage','${r.id}')" title="ลบแถวนี้">✕</button></td></tr>`;
+    <td style="white-space:nowrap;">
+      <button class="row-del" onclick="editSteamRow('${r.id}')" title="แก้ไขแถวนี้">✏️</button>
+      <button class="row-del" onclick="deleteRow('steam_usage','${r.id}')" title="ลบแถวนี้">✕</button>
+    </td></tr>`;
   }).join('') || '<tr><td colspan="11">ไม่มีข้อมูล</td></tr>';
+}
+function editSteamRow(id){
+  const r = window._steamById ? window._steamById[id] : null;
+  if(!r) return;
+  document.getElementById('st-date').value = r.usage_date;
+  document.getElementById('st-srn').value = r.steam_srn_kg;
+  document.getElementById('st-slh').value = r.steam_slh_kg;
+  document.getElementById('st-protein').value = r.steam_protein_kg;
+  document.getElementById('st-date').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
 /* ============================================================
