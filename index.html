@@ -135,6 +135,27 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .paste-zone{background:var(--navy);border:2px dashed var(--line);border-radius:8px;padding:12px;margin-top:10px;}
 .paste-zone.hide{display:none;}
 .hide{display:none !important;}
+
+/* ---------- Mobile Mode (toggle-able, also auto-detects narrow screens) ---------- */
+body.mobile-mode #app-shell{grid-template-columns:1fr;grid-template-rows:52px 44px 1fr;}
+body.mobile-mode #sidebar{display:flex;overflow-x:auto;border-right:none;border-bottom:1px solid var(--line);padding:4px 6px;gap:2px;-webkit-overflow-scrolling:touch;}
+body.mobile-mode #sidebar a{flex-shrink:0;padding:8px 12px;border-left:none;border-bottom:3px solid transparent;font-size:12px;white-space:nowrap;}
+body.mobile-mode #sidebar a.active{border-bottom-color:var(--amber);border-left-color:transparent;background:transparent;}
+body.mobile-mode #topbar{padding:0 12px;}
+body.mobile-mode #topbar .brand{font-size:13px;}
+body.mobile-mode #content{padding:12px;}
+body.mobile-mode .page-title{font-size:18px;margin-bottom:14px;}
+body.mobile-mode .grid-4{grid-template-columns:1fr 1fr;}
+body.mobile-mode .grid-2{grid-template-columns:1fr;}
+body.mobile-mode .card{padding:12px;}
+body.mobile-mode .toolbar{flex-direction:column;align-items:stretch;gap:8px;}
+body.mobile-mode .toolbar .field{min-width:0;width:100%;}
+body.mobile-mode .toolbar button{width:100%;}
+body.mobile-mode table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;font-size:12px;}
+body.mobile-mode .stat .value{font-size:19px;}
+body.mobile-mode .user-info{gap:6px;}
+body.mobile-mode .user-info span.mono{display:none;}
+#mobile-toggle-btn.active-mode{background:var(--amber);color:var(--navy);border-color:var(--amber);}
 .paste-zone label{font-size:10px;font-weight:700;color:var(--ink-dim2);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
 .paste-zone textarea{width:100%;background:transparent;border:none;color:var(--ink);font-family:var(--font-mono);font-size:12px;resize:vertical;min-height:70px;outline:none;line-height:1.5;}
 .preview-table{margin-top:10px;}
@@ -171,6 +192,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div class="brand">🪵 WOODCHIP CONTROL</div>
     <div class="user-info">
       <button class="btn btn-secondary btn-sm" id="theme-toggle-btn" onclick="toggleTheme()" title="สลับโหมดสว่าง/มืด">🌙</button>
+      <button class="btn btn-secondary btn-sm" id="mobile-toggle-btn" onclick="toggleMobileMode()" title="สลับโหมดมือถือ">📱</button>
       <span id="tb-username" class="mono"></span>
       <span class="role-badge" id="tb-role"></span>
       <button class="btn btn-secondary btn-sm" onclick="doLogout()">ออกจากระบบ</button>
@@ -340,6 +362,27 @@ function toggleTheme(){
   applyTheme(next);
 }
 applyTheme(localStorage.getItem('wc_theme') || 'dark');
+
+/* ============================================================
+   MOBILE MODE (toggle-able, also auto-detects narrow screens)
+============================================================ */
+function applyMobileMode(on){
+  document.body.classList.toggle('mobile-mode', on);
+  const btn = document.getElementById('mobile-toggle-btn');
+  if(btn) btn.classList.toggle('active-mode', on);
+}
+function toggleMobileMode(){
+  const next = !document.body.classList.contains('mobile-mode');
+  localStorage.setItem('wc_mobile_mode', next ? '1' : '0'); // จำค่าที่เลือกไว้เอง (ทับการตรวจจับอัตโนมัติ)
+  applyMobileMode(next);
+}
+function checkAutoMobileMode(){
+  const manual = localStorage.getItem('wc_mobile_mode');
+  if(manual !== null){ applyMobileMode(manual === '1'); return; } // เคยเลือกเองไว้แล้ว ใช้ตามนั้นเสมอ
+  applyMobileMode(window.innerWidth <= 768); // ยังไม่เคยเลือก → ตรวจจับหน้าจอให้อัตโนมัติ
+}
+window.addEventListener('resize', checkAutoMobileMode);
+checkAutoMobileMode();
 
 /* ============================================================
    EXCEL EXPORT — ใช้ได้กับทุกตารางในระบบ
