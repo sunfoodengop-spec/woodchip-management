@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 <style>
 :root{
   --navy:#0d1b2a; --navy-2:#132a40; --navy-3:#1b3a56;
@@ -92,6 +93,10 @@ input,select,textarea{font-family:var(--font-body);}
 /* ---------- Cards / stats ---------- */
 .grid{display:grid;gap:16px;}
 .grid-4{grid-template-columns:repeat(4,1fr);}
+.dash-top{display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:stretch;}
+.dash-stats-col{display:flex;flex-direction:column;gap:12px;}
+.dash-pile-card{display:flex;flex-direction:column;}
+body.mobile-mode .dash-top{grid-template-columns:1fr;}
 .grid-2{grid-template-columns:1fr 1fr;}
 .card{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:var(--shadow);}
 .card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line);}
@@ -138,6 +143,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 /* ---------- Mobile Mode (toggle-able, also auto-detects narrow screens) ---------- */
 body.mobile-mode #app-shell{grid-template-columns:1fr;grid-template-rows:52px 44px 1fr;}
+body.mobile-mode #topbar{grid-column:1;}
 body.mobile-mode #sidebar{display:flex;overflow-x:auto;border-right:none;border-bottom:1px solid var(--line);padding:4px 6px;gap:2px;-webkit-overflow-scrolling:touch;}
 body.mobile-mode #sidebar a{flex-shrink:0;padding:8px 12px;border-left:none;border-bottom:3px solid transparent;font-size:12px;white-space:nowrap;}
 body.mobile-mode #sidebar a.active{border-bottom-color:var(--amber);border-left-color:transparent;background:transparent;}
@@ -156,6 +162,15 @@ body.mobile-mode .stat .value{font-size:19px;}
 body.mobile-mode .user-info{gap:6px;}
 body.mobile-mode .user-info span.mono{display:none;}
 #mobile-toggle-btn.active-mode{background:var(--amber);color:var(--navy);border-color:var(--amber);}
+/* ป้องกัน iOS Safari ซูมเข้าอัตโนมัติเมื่อแตะช่องกรอก (ต้อง font-size >= 16px) */
+body.mobile-mode input, body.mobile-mode select, body.mobile-mode textarea{font-size:16px !important;}
+body.mobile-mode .btn{min-height:42px;}
+body.mobile-mode .card-hd{flex-wrap:wrap;gap:8px;}
+body.mobile-mode .btn-sm{min-height:36px;}
+/* หน้า Login ต้องพอดีจอเสมอ ไม่ผูกกับ toggle เพราะต้องใช้ได้ตั้งแต่ก่อน login */
+@media (max-width:480px){
+  .login-box{width:92vw;padding:24px;}
+}
 .paste-zone label{font-size:10px;font-weight:700;color:var(--ink-dim2);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
 .paste-zone textarea{width:100%;background:transparent;border:none;color:var(--ink);font-family:var(--font-mono);font-size:12px;resize:vertical;min-height:70px;outline:none;line-height:1.5;}
 .preview-table{margin-top:10px;}
@@ -360,6 +375,7 @@ function toggleTheme(){
   const next = document.body.classList.contains('light-theme') ? 'dark' : 'light';
   localStorage.setItem('wc_theme', next);
   applyTheme(next);
+  if(location.hash==='#dashboard' && typeof window._lastDashPct==='number') initWoodPile3D(window._lastDashPct); // อัปเดตสีพื้นกอง 3D ให้ตรงธีมทันที
 }
 applyTheme(localStorage.getItem('wc_theme') || 'dark');
 
@@ -375,11 +391,19 @@ function toggleMobileMode(){
   const next = !document.body.classList.contains('mobile-mode');
   localStorage.setItem('wc_mobile_mode', next ? '1' : '0'); // จำค่าที่เลือกไว้เอง (ทับการตรวจจับอัตโนมัติ)
   applyMobileMode(next);
+  resizePile3DIfNeeded();
 }
 function checkAutoMobileMode(){
   const manual = localStorage.getItem('wc_mobile_mode');
-  if(manual !== null){ applyMobileMode(manual === '1'); return; } // เคยเลือกเองไว้แล้ว ใช้ตามนั้นเสมอ
-  applyMobileMode(window.innerWidth <= 768); // ยังไม่เคยเลือก → ตรวจจับหน้าจอให้อัตโนมัติ
+  if(manual !== null){ applyMobileMode(manual === '1'); } // เคยเลือกเองไว้แล้ว ใช้ตามนั้นเสมอ
+  else applyMobileMode(window.innerWidth <= 768); // ยังไม่เคยเลือก → ตรวจจับหน้าจอให้อัตโนมัติ
+  resizePile3DIfNeeded();
+}
+function resizePile3DIfNeeded(){
+  // ขนาดคอนเทนเนอร์ 3D อาจเปลี่ยนตอนสลับ mobile-mode/resize — สร้างฉากใหม่ให้พอดีขนาด
+  if(location.hash==='#dashboard' && typeof window._lastDashPct==='number'){
+    setTimeout(()=>initWoodPile3D(window._lastDashPct), 50); // รอ layout รีโฟลว์ก่อนแล้วค่อยวัดขนาด
+  }
 }
 window.addEventListener('resize', checkAutoMobileMode);
 checkAutoMobileMode();
@@ -525,11 +549,18 @@ async function renderDashboard(){
 
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">ภาพรวม</h2>
-    <div class="grid grid-4">
-      <div class="card stat amber"><div class="label">🏭 สต็อกปัจจุบัน</div><div class="value">${fmt(stock/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${pct}% จาก ${fmt(maxStock/1000,0)} ตัน</div></div>
-      <div class="card stat blue"><div class="label">🐔 ไก่รวม 30 วัน</div><div class="value">${fmt(totalChicken/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${fmt(totalChicken)} กก.</div></div>
-      <div class="card stat green"><div class="label">🪵 ไม้รับจริง 30 วัน</div><div class="value">${fmt(totalReceived/1000,1)}<span class="unit">ตัน</span></div><div class="sub">คำนวณต้องใช้: ${fmt(totalWood/1000,1)} ตัน</div></div>
-      <div class="card stat purp"><div class="label">⚡ SEC เฉลี่ย</div><div class="value">${avgSEC>0?fmt(secDisplay(avgSEC),secDecimals()):'—'}<span class="unit">${secUnitLabel()}</span></div><div class="sub">พลังงานไอน้ำ / ตันไก่ (Enthalpy ${fmt(cfg.STEAM_ENTHALPY_KJ_KG||2773)} kJ/kg)</div></div>
+    <div class="dash-top">
+      <div class="dash-stats-col">
+        <div class="card stat amber"><div class="label">🏭 สต็อกปัจจุบัน</div><div class="value">${fmt(stock/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${pct}% จาก ${fmt(maxStock/1000,0)} ตัน</div></div>
+        <div class="card stat blue"><div class="label">🐔 ไก่รวม 30 วัน</div><div class="value">${fmt(totalChicken/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${fmt(totalChicken)} กก.</div></div>
+        <div class="card stat green"><div class="label">🪵 ไม้รับจริง 30 วัน</div><div class="value">${fmt(totalReceived/1000,1)}<span class="unit">ตัน</span></div><div class="sub">คำนวณต้องใช้: ${fmt(totalWood/1000,1)} ตัน</div></div>
+        <div class="card stat purp"><div class="label">⚡ SEC เฉลี่ย</div><div class="value">${avgSEC>0?fmt(secDisplay(avgSEC),secDecimals()):'—'}<span class="unit">${secUnitLabel()}</span></div><div class="sub">พลังงานไอน้ำ / ตันไก่ (Enthalpy ${fmt(cfg.STEAM_ENTHALPY_KJ_KG||2773)} kJ/kg)</div></div>
+      </div>
+      <div class="card dash-pile-card">
+        <div class="card-hd"><h3 class="card-title" style="margin:0;border:none;padding:0;">🌄 กองไม้ในลาน (จำลอง)</h3><span class="badge ${lvl.cls}">${lvl.txt}</span></div>
+        <div id="pile3d-container" style="height:260px;border-radius:8px;overflow:hidden;"></div>
+        <div class="hint" style="text-align:center;margin-top:6px;">${fmt(stock/1000,1)} / ${fmt(maxStock/1000,0)} ตัน (${pct}%) — ขนาดกองปรับตามสต็อกจริง หมุนช้าๆ อัตโนมัติ</div>
+      </div>
     </div>
     <div class="card section-gap">
       <div class="card-hd"><h3 class="card-title">ระดับสต็อกไม้สับ (ข้อมูลจริง)</h3><span class="badge ${lvl.cls}">${lvl.txt}</span></div>
@@ -567,6 +598,93 @@ async function renderDashboard(){
     ]},
     options:{ scales:{ x:{ticks:{color:'#93a3b8',font:{size:9}},grid:{color:'#26405c'}}, y:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}} }, plugins:{legend:{labels:{color:'#e8edf3'}}} }
   });
+  initWoodPile3D(pct);
+  window._lastDashPct = pct;
+}
+
+/* ============================================================
+   3D WOOD PILE VISUALIZATION (Three.js)
+   จำลองกองไม้สับในลาน ขนาดปรับตาม % สต็อกจริง หมุนช้าๆ อัตโนมัติ
+============================================================ */
+function initWoodPile3D(pct){
+  const container = document.getElementById('pile3d-container');
+  if(!container || typeof THREE === 'undefined') return;
+
+  // เคลียร์ scene เก่า (กันหน่วยความจำรั่วตอน re-render หน้า)
+  if(window._pile3d && window._pile3d.raf) cancelAnimationFrame(window._pile3d.raf);
+  if(window._pile3d && window._pile3d.renderer) window._pile3d.renderer.dispose();
+  container.innerHTML = '';
+
+  const isLight = document.body.classList.contains('light-theme');
+  const w = container.clientWidth || 400, h = container.clientHeight || 260;
+
+  const scene = new THREE.Scene();
+  scene.background = null;
+
+  const camera = new THREE.PerspectiveCamera(40, w/h, 0.1, 100);
+  camera.position.set(0, 3.6, 8.5);
+  camera.lookAt(0, 0.5, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  container.appendChild(renderer.domElement);
+
+  // พื้นลาน (วงกลม = ขอบเขตพื้นที่ 400 ตัน)
+  const groundGeo = new THREE.CircleGeometry(4.2, 48);
+  const groundMat = new THREE.MeshStandardMaterial({ color: isLight?0xd7dde5:0x1b3a56, roughness:0.9 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI/2;
+  scene.add(ground);
+
+  // เส้นขอบลานแบบ wireframe (บอกขอบเขตความจุเต็ม 100%)
+  const ringGeo = new THREE.RingGeometry(4.15, 4.25, 48);
+  const ringMat = new THREE.MeshBasicMaterial({ color:0xf59e0b, side:THREE.DoubleSide, transparent:true, opacity:0.5 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI/2;
+  ring.position.y = 0.01;
+  scene.add(ring);
+
+  // กองไม้สับ: ทรงกรวยไม่เรียบ (แทนกองจริง) สเกลตาม %สต็อก (ปริมาตร ∝ pct)
+  const scaleFactor = Math.max(0.12, Math.min(1, Math.cbrt(Math.max(pct,1)/100)));
+  const baseRadius = 3.4, baseHeight = 2.6;
+  const pileGeo = new THREE.ConeGeometry(baseRadius*scaleFactor, baseHeight*scaleFactor, 10, 4);
+  // ทำให้ผิวกองไม่เรียบเป๊ะ ดูเป็นกองจริงมากขึ้น
+  const posAttr = pileGeo.attributes.position;
+  for(let i=0;i<posAttr.count;i++){
+    const y = posAttr.getY(i);
+    if(y < baseHeight*scaleFactor*0.45){ // เฉพาะฐานกอง ไม่แตะยอด
+      const n = (Math.sin(i*12.9898)*43758.5453) % 1;
+      const jitter = (n - 0.5) * 0.18 * scaleFactor;
+      posAttr.setX(i, posAttr.getX(i) + jitter);
+      posAttr.setZ(i, posAttr.getZ(i) + jitter);
+    }
+  }
+  pileGeo.computeVertexNormals();
+  const pileMat = new THREE.MeshStandardMaterial({ color:0xb5651d, roughness:1, flatShading:true });
+  const pile = new THREE.Mesh(pileGeo, pileMat);
+  pile.position.y = (baseHeight*scaleFactor)/2;
+  scene.add(pile);
+
+  // แสง
+  scene.add(new THREE.AmbientLight(0xffffff, isLight?0.7:0.45));
+  const dLight = new THREE.DirectionalLight(0xffffff, isLight?0.7:0.9);
+  dLight.position.set(4, 6, 3);
+  scene.add(dLight);
+  const dLight2 = new THREE.DirectionalLight(0xf59e0b, 0.25);
+  dLight2.position.set(-3, 2, -2);
+  scene.add(dLight2);
+
+  let frame = 0;
+  function animate(){
+    frame += 0.006;
+    pile.rotation.y += 0.0025; // หมุนช้าๆ
+    pile.position.y = (baseHeight*scaleFactor)/2 + Math.sin(frame)*0.03; // หายใจเบาๆ
+    renderer.render(scene, camera);
+    window._pile3d.raf = requestAnimationFrame(animate);
+  }
+  window._pile3d = { renderer, raf:null };
+  animate();
 }
 
 /* ============================================================
