@@ -667,9 +667,13 @@ async function saveChickenField(t){
   const params = { p_token: SESSION.token, p_date: date,
     p_chicken_kg: t==='chicken' ? val : null,
     p_feathers_kg: t==='feathers' ? val : null };
-  const res = await rpc('save_chicken_plan', params);
-  document.getElementById('ck-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว — ไม้สับที่คำนวณได้ ${fmt(res.calc_wood_kg)} กก.</span>`;
-  loadChickenTable();
+  try{
+    const res = await rpc('save_chicken_plan', params);
+    document.getElementById('ck-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว — ไม้สับที่คำนวณได้ ${fmt(res.calc_wood_kg)} กก.</span>`;
+    loadChickenTable();
+  }catch(e){
+    document.getElementById('ck-result').innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message.includes('FORBIDDEN')?'บทบาทของคุณไม่มีสิทธิ์บันทึกส่วนนี้':e.message}</div>`;
+  }
 }
 async function previewChickenPaste(t){
   document.getElementById('ck-result').innerHTML=''; // เคลียร์ข้อความบันทึกรายวันเดิม กันสับสนกับผลนำเข้า
@@ -765,10 +769,14 @@ async function renderActualUse(){
 async function saveActualUse(){
   const date = document.getElementById('au-date').value;
   const kg = parseFloat(document.getElementById('au-kg').value || 0);
-  const res = await rpc('save_actual_wood_usage', { p_token: SESSION.token, p_date: date, p_actual_wood_kg: kg });
-  document.getElementById('au-result').innerHTML = `<span style="color:var(--green);">บันทึกยอดใช้จริงแล้ว ${fmt(res.actual_wood_kg)} กก. (ประมาณการเดิม ${fmt(res.calc_wood_kg)} กก.) — ระบบตัดสต็อกด้วยยอดจริงแล้ว</span>`;
-  document.getElementById('au-kg').value='';
-  loadActualUseTable();
+  try{
+    const res = await rpc('save_actual_wood_usage', { p_token: SESSION.token, p_date: date, p_actual_wood_kg: kg });
+    document.getElementById('au-result').innerHTML = `<span style="color:var(--green);">บันทึกยอดใช้จริงแล้ว ${fmt(res.actual_wood_kg)} กก. (ประมาณการเดิม ${fmt(res.calc_wood_kg)} กก.) — ระบบตัดสต็อกด้วยยอดจริงแล้ว</span>`;
+    document.getElementById('au-kg').value='';
+    loadActualUseTable();
+  }catch(e){
+    document.getElementById('au-result').innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message.includes('FORBIDDEN')?'บทบาทของคุณไม่มีสิทธิ์บันทึกยอดใช้ไม้จริง (ตอนนี้เฉพาะ PRD/ENG/ADMIN)':e.message}</div>`;
+  }
 }
 function previewActualUsePaste(){
   document.getElementById('au-result').innerHTML='';
@@ -823,8 +831,10 @@ function editActualUseRow(date){
 }
 async function clearActualUse(date){
   if(!confirm(`ยืนยันล้างยอดใช้จริงของวันที่ ${date}? ระบบจะกลับไปใช้ค่าประมาณการตัดสต็อกแทน`)) return;
-  await rpc('clear_actual_wood_usage', { p_token: SESSION.token, p_date: date });
-  loadActualUseTable();
+  try{
+    await rpc('clear_actual_wood_usage', { p_token: SESSION.token, p_date: date });
+    loadActualUseTable();
+  }catch(e){ alert('ล้างยอดไม่สำเร็จ: ' + e.message); }
 }
 
 /* ============================================================
@@ -926,9 +936,13 @@ async function savePurchasePlan(){
   const date = document.getElementById('pp-date').value;
   const supplierId = document.getElementById('pp-supplier').value;
   const trailers = parseFloat(document.getElementById('pp-trailers').value || 0);
-  const res = await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_trailers: trailers });
-  document.getElementById('pp-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.planned_kg)} กก.</span>`;
-  loadPurchaseTable();
+  try{
+    const res = await rpc('save_purchase_plan', { p_token: SESSION.token, p_date: date, p_supplier_id: supplierId, p_trailers: trailers });
+    document.getElementById('pp-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว ${fmt(res.planned_kg)} กก.</span>`;
+    loadPurchaseTable();
+  }catch(e){
+    document.getElementById('pp-result').innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message}</div>`;
+  }
 }
 function previewPurchasePaste(){
   document.getElementById('pp-result').innerHTML='';
@@ -1153,9 +1167,13 @@ async function saveSteam(){
   const srn = parseFloat(document.getElementById('st-srn').value || 0);
   const slh = parseFloat(document.getElementById('st-slh').value || 0);
   const protein = parseFloat(document.getElementById('st-protein').value || 0);
-  const res = await rpc('save_steam_usage_detail', { p_token: SESSION.token, p_date: date, p_srn_kg: srn, p_slh_kg: slh, p_protein_kg: protein });
-  document.getElementById('st-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว รวม ${fmt(res.total_steam_kg)} กก.</span>`;
-  loadSteamTable();
+  try{
+    const res = await rpc('save_steam_usage_detail', { p_token: SESSION.token, p_date: date, p_srn_kg: srn, p_slh_kg: slh, p_protein_kg: protein });
+    document.getElementById('st-result').innerHTML = `<span style="color:var(--green);">บันทึกแล้ว รวม ${fmt(res.total_steam_kg)} กก.</span>`;
+    loadSteamTable();
+  }catch(e){
+    document.getElementById('st-result').innerHTML = `<div class="err-msg">บันทึกไม่สำเร็จ: ${e.message}</div>`;
+  }
 }
 function previewSteamPaste(){
   document.getElementById('st-result').innerHTML='';
@@ -1573,8 +1591,10 @@ function cancelEditUser(){
   document.getElementById('nu-form-title').textContent='เพิ่มผู้ใช้งานใหม่';
 }
 async function toggleUserActive(id, active){
-  await rpc('set_user_active', { p_token: SESSION.token, p_id: id, p_active: active });
-  refreshUsersList();
+  try{
+    await rpc('set_user_active', { p_token: SESSION.token, p_id: id, p_active: active });
+    refreshUsersList();
+  }catch(e){ alert('เปลี่ยนสถานะไม่สำเร็จ: ' + e.message); }
 }
 function previewUserPaste(){
   document.getElementById('nu-msg').innerHTML='';
@@ -1637,14 +1657,18 @@ async function resetUserPw(username){
 async function deleteRange(table, fromId, toId){
   const from = document.getElementById(fromId).value, to = document.getElementById(toId).value;
   if(!confirm(`ยืนยันลบข้อมูลตั้งแต่ ${from} ถึง ${to}? (ตอนนี้กู้คืนได้ในภายหลังผ่าน ตั้งค่า → ประวัติการลบ)`)) return;
-  const res = await rpc('delete_records', { p_token: SESSION.token, p_table: table, p_date_from: from, p_date_to: to });
-  alert(`ลบข้อมูล ${res.deleted_count} แถวเรียบร้อย — กู้คืนได้ที่ ตั้งค่า → ประวัติการลบ`);
-  router();
+  try{
+    const res = await rpc('delete_records', { p_token: SESSION.token, p_table: table, p_date_from: from, p_date_to: to });
+    alert(`ลบข้อมูล ${res.deleted_count} แถวเรียบร้อย — กู้คืนได้ที่ ตั้งค่า → ประวัติการลบ`);
+    router();
+  }catch(e){ alert('ลบไม่สำเร็จ: ' + e.message); }
 }
 async function deleteRow(table, id){
   if(!confirm('ยืนยันลบแถวนี้? (กู้คืนได้ภายหลังผ่าน ตั้งค่า → ประวัติการลบ)')) return;
-  await rpc('delete_record_by_id', { p_token: SESSION.token, p_table: table, p_id: id });
-  router();
+  try{
+    await rpc('delete_record_by_id', { p_token: SESSION.token, p_table: table, p_id: id });
+    router();
+  }catch(e){ alert('ลบไม่สำเร็จ: ' + e.message); }
 }
 
 /* ============================================================
