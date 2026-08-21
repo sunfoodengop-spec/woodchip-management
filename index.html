@@ -395,6 +395,13 @@ function exportTableToExcel(tableId, filename){
 }
 
 function fmt(n,d=0){ return n==null ? '-' : Number(n).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+// SEC หน่วยสากล: GJ พลังงานไอน้ำ ÷ ตันวัตถุดิบ (แปลงมวลไอน้ำ→พลังงานด้วย Enthalpy ที่ตั้งค่าไว้)
+function secGJperTonne(steamKg, rawKg, enthalpyKJkg){
+  if(!steamKg || !rawKg || rawKg<=0) return null;
+  const energyGJ = (steamKg * (enthalpyKJkg||2773)) / 1e6;
+  const rawTonnes = rawKg / 1000;
+  return rawTonnes>0 ? energyGJ/rawTonnes : null;
+}
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function daysAgoISO(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
 function isoWeek(dateStr){
@@ -484,7 +491,7 @@ async function renderDashboard(){
   const chickenMap = {}; chicken.forEach(c=>chickenMap[c.plan_date]=c.planned_chicken_kg);
   const secByDate = chicken.map(c=>{
     const st = steamMap[c.plan_date];
-    return { date:c.plan_date, sec: (st && c.planned_chicken_kg) ? st/c.planned_chicken_kg : null };
+    return { date:c.plan_date, sec: secGJperTonne(st, c.planned_chicken_kg, cfg.STEAM_ENTHALPY_KJ_KG) };
   });
   const secVals = secByDate.map(d=>d.sec).filter(v=>v!=null);
   const avgSEC = secVals.length ? secVals.reduce((a,b)=>a+b,0)/secVals.length : 0;
@@ -503,7 +510,7 @@ async function renderDashboard(){
       <div class="card stat amber"><div class="label">🏭 สต็อกปัจจุบัน</div><div class="value">${fmt(stock/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${pct}% จาก ${fmt(maxStock/1000,0)} ตัน</div></div>
       <div class="card stat blue"><div class="label">🐔 ไก่รวม 30 วัน</div><div class="value">${fmt(totalChicken/1000,1)}<span class="unit">ตัน</span></div><div class="sub">${fmt(totalChicken)} กก.</div></div>
       <div class="card stat green"><div class="label">🪵 ไม้รับจริง 30 วัน</div><div class="value">${fmt(totalReceived/1000,1)}<span class="unit">ตัน</span></div><div class="sub">คำนวณต้องใช้: ${fmt(totalWood/1000,1)} ตัน</div></div>
-      <div class="card stat purp"><div class="label">⚡ SEC เฉลี่ย</div><div class="value">${avgSEC>0?fmt(avgSEC,3):'—'}<span class="unit">kg/kg</span></div><div class="sub">กก.ไอน้ำ / กก.ไก่</div></div>
+      <div class="card stat purp"><div class="label">⚡ SEC เฉลี่ย</div><div class="value">${avgSEC>0?fmt(avgSEC,3):'—'}<span class="unit">GJ/ตัน</span></div><div class="sub">พลังงานไอน้ำ / ตันไก่ (Enthalpy ${fmt(cfg.STEAM_ENTHALPY_KJ_KG||2773)} kJ/kg)</div></div>
     </div>
     <div class="card section-gap">
       <div class="card-hd"><h3 class="card-title">ระดับสต็อกไม้สับ (ข้อมูลจริง)</h3><span class="badge ${lvl.cls}">${lvl.txt}</span></div>
@@ -537,7 +544,7 @@ async function renderDashboard(){
   new Chart(document.getElementById('secChart'), {
     type:'line',
     data:{ labels: secByDate.map(d=>d.date.slice(5)), datasets:[
-      {label:'SEC (kg/kg)', data: secByDate.map(d=>d.sec), borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.15)', fill:true, tension:.3, pointRadius:2}
+      {label:'SEC (GJ/ตัน)', data: secByDate.map(d=>d.sec), borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.15)', fill:true, tension:.3, pointRadius:2}
     ]},
     options:{ scales:{ x:{ticks:{color:'#93a3b8',font:{size:9}},grid:{color:'#26405c'}}, y:{ticks:{color:'#93a3b8'},grid:{color:'#26405c'}} }, plugins:{legend:{labels:{color:'#e8edf3'}}} }
   });
@@ -1126,9 +1133,9 @@ async function renderSteam(){
     <h2 class="page-title">บันทึกไอน้ำรายวัน (3 ระบบ)</h2>
     <div class="card">
       <div class="hint" style="margin-bottom:12px;">
-        <b>SEC SRN</b> = ไอน้ำ SRN ÷ (ขนไก่+กระดูก+ขนไก่ที่ซื้อมา) &nbsp;|&nbsp;
-        <b>SEC SLH</b> = ไอน้ำ SLH ÷ น้ำหนักไก่เข้า &nbsp;|&nbsp;
-        <b>SEC Protein</b> = ไอน้ำ Protein ÷ ไส้ไก่ (4.5% ของไก่)
+        <b>SEC SRN</b> = พลังงานไอน้ำ SRN (GJ) ÷ (ขนไก่+กระดูก+ขนไก่ที่ซื้อมา) ตัน &nbsp;|&nbsp;
+        <b>SEC SLH</b> = พลังงานไอน้ำ SLH (GJ) ÷ น้ำหนักไก่เข้า ตัน &nbsp;|&nbsp;
+        <b>SEC Protein</b> = พลังงานไอน้ำ Protein (GJ) ÷ ไส้ไก่ (4.5% ของไก่) ตัน — ใช้ Enthalpy ไอน้ำ 9 bar Sat.Vapor (2,773 kJ/kg) แปลงมวลเป็นพลังงาน ปรับค่าได้ที่ตั้งค่า→สูตรคำนวณ
       </div>
       <div class="toolbar">
         <div class="field"><label>วันที่</label><input type="date" id="st-date" value="${todayISO()}"></div>
@@ -1157,7 +1164,7 @@ async function renderSteam(){
       <div class="card" style="overflow-x:auto;padding:0;">
       <table id="st-table"><thead><tr>
         <th>วันที่</th><th>SRN (กก.)</th><th>SLH (กก.)</th><th>Protein (กก.)</th><th>รวม (กก.)</th>
-        <th>ไก่ (กก.)</th><th>SEC SRN</th><th>SEC SLH</th><th>SEC Protein</th><th>บันทึกโดย</th><th></th>
+        <th>ไก่ (กก.)</th><th>SEC SRN (GJ/ตัน)</th><th>SEC SLH (GJ/ตัน)</th><th>SEC Protein (GJ/ตัน)</th><th>บันทึกโดย</th><th></th>
       </tr></thead><tbody></tbody></table></div>
     </div>`;
   loadSteamTable();
@@ -1221,9 +1228,9 @@ async function loadSteamTable(){
     const srnBase = cp ? (cp.chicken*pctFeatherBone + cp.feathers) : null;
     const slhBase = chickenKg;
     const proteinBase = cp ? (cp.chicken*pctIntestine) : null;
-    const secSrn = (srnBase && r.steam_srn_kg) ? r.steam_srn_kg/srnBase : null;
-    const secSlh = (slhBase && r.steam_slh_kg) ? r.steam_slh_kg/slhBase : null;
-    const secProtein = (proteinBase && r.steam_protein_kg) ? r.steam_protein_kg/proteinBase : null;
+    const secSrn = secGJperTonne(r.steam_srn_kg, srnBase, cfg.STEAM_ENTHALPY_KJ_KG);
+    const secSlh = secGJperTonne(r.steam_slh_kg, slhBase, cfg.STEAM_ENTHALPY_KJ_KG);
+    const secProtein = secGJperTonne(r.steam_protein_kg, proteinBase, cfg.STEAM_ENTHALPY_KJ_KG);
     return `<tr><td>${r.usage_date}</td><td>${fmt(r.steam_srn_kg)}</td><td>${fmt(r.steam_slh_kg)}</td><td>${fmt(r.steam_protein_kg)}</td>
     <td style="font-weight:700;">${fmt(r.steam_kg)}</td><td>${chickenKg?fmt(chickenKg):'-'}</td>
     <td style="color:var(--purp);">${secSrn?fmt(secSrn,3):'-'}</td>
@@ -1287,9 +1294,10 @@ async function renderReports(){
 }
 async function loadReports(){
   const from = document.getElementById('rp-from').value, to = document.getElementById('rp-to').value;
-  const [r, dash] = await Promise.all([
+  const [r, dash, cfg] = await Promise.all([
     rpc('get_reports', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
-    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to })
+    rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: from, p_date_to: to }),
+    getConfigMap()
   ]);
   const chicken = dash.chicken_plan || [], steam = dash.steam_usage || [];
   const steamMap = {}; steam.forEach(s=>steamMap[s.usage_date]=s.steam_kg);
@@ -1322,8 +1330,8 @@ async function loadReports(){
       <div class="card">
         <h3 class="card-title" style="margin-top:0;">สรุปรายสัปดาห์ (SEC)</h3>
         <button class="btn btn-secondary btn-sm" onclick="exportTableToExcel('rp-weekly-table','รายงาน_รายสัปดาห์')">📥 Export Excel</button>
-        <table id="rp-weekly-table"><thead><tr><th>สัปดาห์</th><th>ไก่ (กก.)</th><th>ไม้ (กก.)</th><th>ไอน้ำ (กก.)</th><th>SEC</th></tr></thead>
-        <tbody>${weeklyRows.map(w=>`<tr><td>${w.week}</td><td>${fmt(w.chicken)}</td><td>${fmt(w.wood)}</td><td>${fmt(w.steam)}</td><td style="color:var(--purp);">${w.chicken?fmt(w.steam/w.chicken,3):'-'}</td></tr>`).join('') || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+        <table id="rp-weekly-table"><thead><tr><th>สัปดาห์</th><th>ไก่ (กก.)</th><th>ไม้ (กก.)</th><th>ไอน้ำ (กก.)</th><th>SEC (GJ/ตัน)</th></tr></thead>
+        <tbody>${weeklyRows.map(w=>`<tr><td>${w.week}</td><td>${fmt(w.chicken)}</td><td>${fmt(w.wood)}</td><td>${fmt(w.steam)}</td><td style="color:var(--purp);">${fmt(secGJperTonne(w.steam, w.chicken, cfg.STEAM_ENTHALPY_KJ_KG),3)}</td></tr>`).join('') || '<tr><td colspan="5">ไม่มีข้อมูล</td></tr>'}</tbody></table>
       </div>
     </div>`;
 }
