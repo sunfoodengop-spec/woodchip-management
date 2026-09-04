@@ -764,13 +764,67 @@ async function renderChicken(){
   const isPRD = SESSION.role === 'PRD';
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">แผนไก่ / ขนไก่</h2>
-    <div class="tabs">
+    <div class="card" id="rm-widget-card">
+      <div class="card-hd"><h3 class="card-title" style="margin:0;">🚦 วัตถุดิบเข้าโรงงานวันนี้ (เหตุฉุกเฉิน)</h3>
+        <div class="field" style="min-width:0;"><input type="date" id="rm-date" value="${todayISO()}" onchange="loadRawMaterialFlags()"></div></div>
+      <div class="hint" style="margin-bottom:12px;">ปิดรายการที่ "ไม่มีเข้า" วันนั้น — <b>กระดูก/ขนไก่</b> จะตัดออกจากสูตรคำนวณ SEC และยอดสั่งไม้ทันที ส่วน <b>เปลือกไข่/ไก่ตาย</b> บันทึกไว้เป็นสถานะเฉยๆ (ยังไม่มีค่าสัมประสิทธิ์ในสูตร แจ้งทีมได้ถ้าต้องการเพิ่ม)</div>
+      <div id="rm-toggles" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+      <div id="rm-result" class="hint" style="margin-top:8px;"></div>
+    </div>
+    <div class="tabs section-gap">
       ${isPRD ? '' : '<div class="tab active" data-t="chicken" onclick="switchChickenTab(\'chicken\')">🐔 น้ำหนักไก่</div>'}
       <div class="tab${isPRD?' active':''}" data-t="feathers" onclick="switchChickenTab('feathers')">🪶 ขนไก่ที่ซื้อ</div>
     </div>
     ${isPRD ? '<div class="hint" style="margin-bottom:14px;">บทบาท PRD บันทึกได้เฉพาะขนไก่ที่ซื้อ — น้ำหนักไก่บันทึกโดย ENG/ADMIN</div>' : ''}
     <div id="chicken-tab-body"></div>`;
   switchChickenTab(isPRD ? 'feathers' : 'chicken');
+  loadRawMaterialFlags();
+}
+
+/* ---------- วัตถุดิบเข้าโรงงาน (toggle รายวัน — เหตุฉุกเฉิน) ---------- */
+const RM_MATERIALS = [
+  {key:'bones', label:'🦴 กระดูก', affects:true},
+  {key:'feathers', label:'🪶 ขนไก่', affects:true},
+  {key:'eggshell', label:'🥚 เปลือกไข่', affects:false},
+  {key:'dead_chicken', label:'🐔 ไก่ตาย', affects:false},
+];
+async function loadRawMaterialFlags(){
+  const date = document.getElementById('rm-date').value;
+  const box = document.getElementById('rm-toggles');
+  box.innerHTML = '<span class="hint">กำลังโหลด...</span>';
+  try{
+    const data = await rpc('get_dashboard_data', { p_token: SESSION.token, p_date_from: date, p_date_to: date });
+    const row = (data.chicken_plan && data.chicken_plan[0]) || {};
+    window._rmFlags = {
+      bones: row.has_bones !== false, feathers: row.has_feathers !== false,
+      eggshell: row.has_eggshell !== false, dead_chicken: row.has_dead_chicken !== false
+    };
+    renderRawMaterialToggles();
+  }catch(e){
+    box.innerHTML = `<div class="err-msg">โหลดสถานะไม่สำเร็จ: ${e.message}</div>`;
+  }
+}
+function renderRawMaterialToggles(){
+  const box = document.getElementById('rm-toggles');
+  box.innerHTML = RM_MATERIALS.map(m=>{
+    const on = window._rmFlags[m.key];
+    return `<button class="btn ${on?'btn-secondary':'btn-danger'}" style="min-width:120px;" onclick="toggleRawMaterial('${m.key}', ${!on})">
+      ${m.label}<br><span style="font-size:11px;">${on?'✅ มีเข้า':'⛔ ไม่มีเข้า'}${m.affects?'':' (ไม่กระทบสูตร)'}</span>
+    </button>`;
+  }).join('');
+}
+async function toggleRawMaterial(material, newState){
+  const date = document.getElementById('rm-date').value;
+  const resultEl = document.getElementById('rm-result');
+  try{
+    const res = await rpc('set_raw_material_flag', { p_token: SESSION.token, p_date: date, p_material: material, p_present: newState });
+    window._rmFlags = { bones: res.has_bones, feathers: res.has_feathers, eggshell: res.has_eggshell, dead_chicken: res.has_dead_chicken };
+    renderRawMaterialToggles();
+    resultEl.innerHTML = `<span style="color:var(--green);">อัปเดตแล้ว — ไม้สับคำนวณใหม่ ${fmt(res.calc_wood_kg)} กก.</span>`;
+    if(document.getElementById('ck-table')) loadChickenTable(); // รีเฟรชตารางด้านล่างให้ตัวเลขตรงกัน ถ้ากำลังเปิดอยู่
+  }catch(e){
+    resultEl.innerHTML = `<div class="err-msg">อัปเดตไม่สำเร็จ: ${e.message}</div>`;
+  }
 }
 async function switchChickenTab(t){
   document.querySelectorAll('#content .tab').forEach(el=>el.classList.toggle('active', el.dataset.t===t));
@@ -858,8 +912,14 @@ async function loadChickenTable(){
   window._chickenByDate = {}; (rows.chicken_plan||[]).forEach(r=>window._chickenByDate[r.plan_date]=r);
   document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>{
     const hasActual = r.actual_wood_kg!=null;
+    const missing = [];
+    if(r.has_bones===false) missing.push('🦴');
+    if(r.has_feathers===false) missing.push('🪶');
+    if(r.has_eggshell===false) missing.push('🥚');
+    if(r.has_dead_chicken===false) missing.push('🐔');
+    const missingHtml = missing.length ? `<span title="วัตถุดิบไม่เข้าวันนี้" style="opacity:.6;">${missing.map(m=>m+'⛔').join(' ')}</span>` : '';
     return `<tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
-    <td>${fmt(r.calc_wood_kg)}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
+    <td>${fmt(r.calc_wood_kg)} ${missingHtml}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
     <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
     <td>${r.recorded_by||''}</td>
     <td style="white-space:nowrap;">
@@ -1356,13 +1416,16 @@ async function loadSteamTable(){
     getConfigMap()
   ]);
   const pctFeatherBone = cfg.PCT_FEATHER_BONE ?? 0.21575, pctIntestine = cfg.PCT_INTESTINE ?? 0.045;
-  const chickenMap = {}; (ck.chicken_plan||[]).forEach(c=>chickenMap[c.plan_date]={chicken:c.planned_chicken_kg, feathers:c.purchased_feathers_kg||0});
+  const chickenMap = {}; (ck.chicken_plan||[]).forEach(c=>chickenMap[c.plan_date]={
+    chicken:c.planned_chicken_kg, feathers:c.purchased_feathers_kg||0,
+    hasBones: c.has_bones!==false, hasFeathers: c.has_feathers!==false
+  });
   window._steamById = {}; (steamRows||[]).forEach(r=>window._steamById[r.id]=r);
 
   document.querySelector('#st-table tbody').innerHTML = (steamRows||[]).map(r=>{
     const cp = chickenMap[r.usage_date];
     const chickenKg = cp ? cp.chicken : null;
-    const srnBase = cp ? (cp.chicken*pctFeatherBone + cp.feathers) : null;
+    const srnBase = cp ? ((cp.hasBones?cp.chicken*pctFeatherBone:0) + (cp.hasFeathers?cp.feathers:0)) : null;
     const slhBase = chickenKg;
     const proteinBase = cp ? (cp.chicken*pctIntestine) : null;
     const secSrn = secGJperTonne(r.steam_srn_kg, srnBase, cfg.STEAM_ENTHALPY_KJ_KG);
