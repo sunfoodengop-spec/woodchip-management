@@ -126,6 +126,9 @@ td{padding:9px 10px;border-bottom:1px solid rgba(38,64,92,.5);font-family:var(--
 tr:hover td{background:rgba(255,255,255,.02);}
 .badge-over{color:var(--warn);font-weight:700;}
 .row-del{background:transparent;border:none;color:var(--ink-dim2);font-size:14px;padding:2px 6px;border-radius:4px;}
+.rm-mini-toggle{background:var(--green-bg);border:1px solid var(--green);color:var(--ink);font-size:13px;padding:3px 6px;border-radius:5px;margin-right:3px;cursor:pointer;opacity:0.9;}
+.rm-mini-toggle:hover{opacity:1;transform:scale(1.08);}
+.rm-mini-toggle.off{background:var(--red-bg);border-color:var(--red);opacity:0.55;filter:grayscale(60%);}
 .row-del:hover{color:var(--red);background:var(--red-bg);}
 .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);}
 .tab{padding:9px 18px;font-size:13px;color:var(--ink-dim);border-bottom:2px solid transparent;cursor:pointer;font-weight:600;}
@@ -855,7 +858,7 @@ async function switchChickenTab(t){
         <button class="btn btn-secondary" onclick="exportTableToExcel('ck-table','แผนไก่_ขนไก่')">📥 Export Excel</button>
         ${SESSION.role!=='PRD' ? '<button class="btn btn-danger" onclick="deleteRange(\'chicken_plan\',\'ck-from\',\'ck-to\')">ลบทั้งช่วง</button>' : ''}
       </div>
-      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ตัดสต็อกด้วย</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="ck-table"><thead><tr><th>วันที่</th><th>ไก่ (กก.)</th><th>ขนไก่ (กก.)</th><th>ประมาณการ (กก.)</th><th>ใช้จริง (กก.)</th><th>ตัดสต็อกด้วย</th><th>วัตถุดิบเข้า</th><th>บันทึกโดย</th><th></th></tr></thead><tbody></tbody></table>
     </div>`;
   loadChickenTable();
 }
@@ -912,21 +915,30 @@ async function loadChickenTable(){
   window._chickenByDate = {}; (rows.chicken_plan||[]).forEach(r=>window._chickenByDate[r.plan_date]=r);
   document.querySelector('#ck-table tbody').innerHTML = (rows.chicken_plan||[]).map(r=>{
     const hasActual = r.actual_wood_kg!=null;
-    const missing = [];
-    if(r.has_bones===false) missing.push('🦴');
-    if(r.has_feathers===false) missing.push('🪶');
-    if(r.has_eggshell===false) missing.push('🥚');
-    if(r.has_dead_chicken===false) missing.push('🐔');
-    const missingHtml = missing.length ? `<span title="วัตถุดิบไม่เข้าวันนี้" style="opacity:.6;">${missing.map(m=>m+'⛔').join(' ')}</span>` : '';
+    const rmCells = RM_MATERIALS.map(m=>{
+      const flagKey = 'has_' + m.key;
+      const on = r[flagKey] !== false;
+      return `<button class="rm-mini-toggle ${on?'':'off'}" title="${m.label} — ${on?'มีเข้า (กดเพื่อปิด)':'ไม่มีเข้า (กดเพื่อเปิด)'}${m.affects?'':' — ไม่กระทบสูตร'}" onclick="toggleRawMaterialInline('${r.plan_date}','${m.key}',${!on})">${m.label.split(' ')[0]}</button>`;
+    }).join('');
     return `<tr><td>${r.plan_date}</td><td>${fmt(r.planned_chicken_kg)}</td><td>${fmt(r.purchased_feathers_kg)}</td>
-    <td>${fmt(r.calc_wood_kg)} ${missingHtml}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
+    <td>${fmt(r.calc_wood_kg)}</td><td style="${hasActual?'color:var(--green);font-weight:700;':'color:var(--ink-dim2);'}">${hasActual?fmt(r.actual_wood_kg):'-'}</td>
     <td>${hasActual?'<span class="badge badge-ok">จริง</span>':'<span class="badge badge-info">ประมาณการ</span>'}</td>
+    <td style="white-space:nowrap;">${rmCells}</td>
     <td>${r.recorded_by||''}</td>
     <td style="white-space:nowrap;">
       <button class="row-del" onclick="editChickenRow('${r.plan_date}')" title="แก้ไขแถวนี้">✏️</button>
       ${SESSION.role!=='PRD'?`<button class="row-del" onclick="deleteRow('chicken_plan','${r.id}')" title="ลบแถวนี้">✕</button>`:''}
     </td></tr>`;
-  }).join('') || '<tr><td colspan="8">ไม่มีข้อมูล</td></tr>';
+  }).join('') || '<tr><td colspan="9">ไม่มีข้อมูล</td></tr>';
+}
+async function toggleRawMaterialInline(date, material, newState){
+  try{
+    await rpc('set_raw_material_flag', { p_token: SESSION.token, p_date: date, p_material: material, p_present: newState });
+    loadChickenTable(); // รีโหลดทั้งตาราง ให้ยอดไม้สับ/badge ที่คำนวณใหม่อัปเดตตรงกันทุกคอลัมน์
+    if(document.getElementById('rm-date') && document.getElementById('rm-date').value===date) loadRawMaterialFlags(); // sync การ์ดด้านบนถ้าเปิดวันเดียวกันอยู่
+  }catch(e){
+    alert('อัปเดตไม่สำเร็จ: ' + e.message);
+  }
 }
 function editChickenRow(date){
   const r = window._chickenByDate[date];
